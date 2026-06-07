@@ -83,18 +83,80 @@ const Reports = () => {
 
       {/* BASIC DETAILS */}
       <div className="grid grid-cols-2 gap-4">
-        <p><b>Event Type:</b> {report.type}</p>
-        <p><b>Department:</b> {report.department}</p>
+<div>
+  <label className="font-semibold">Event Type</label>
+  <input
+    className="w-full border rounded p-2"
+    value={report.type || ""}
+    onChange={(e) =>
+      setReport({
+        ...report,
+        type: e.target.value,
+      })
+    }
+  />
+</div>
+<div>
+  <label className="font-semibold">Department</label>
+  <input
+    className="w-full border rounded p-2"
+    value={report.department || ""}
+    onChange={(e) =>
+      setReport({
+        ...report,
+        department: e.target.value,
+      })
+    }
+  />
+</div>
         <p><b>Date:</b> {report.date}</p>
         <p><b>Time:</b> {report.time}</p>
-        <p><b>Venue:</b> {report.venue}</p>
+<input
+  className="border p-2 rounded w-full"
+  value={report.venue || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      venue: e.target.value,
+    })
+  }
+/>
       </div>
 
       {/* RESOURCE PERSON */}
       <div>
         <h3 className="font-semibold border-b pb-1 mb-2">Resource Person</h3>
-        <p><b>Name:</b> {report.resourcePerson?.name}</p>
-        <p><b>Organization:</b> {report.resourcePerson?.organization}</p>
+        <div className="space-y-2">
+  <input
+    className="w-full border rounded p-2"
+    placeholder="Resource Person Name"
+    value={report.resourcePerson?.name || ""}
+    onChange={(e) =>
+      setReport({
+        ...report,
+        resourcePerson: {
+          ...report.resourcePerson,
+          name: e.target.value,
+        },
+      })
+    }
+  />
+
+  <input
+    className="w-full border rounded p-2"
+    placeholder="Organization"
+    value={report.resourcePerson?.organization || ""}
+    onChange={(e) =>
+      setReport({
+        ...report,
+        resourcePerson: {
+          ...report.resourcePerson,
+          organization: e.target.value,
+        },
+      })
+    }
+  />
+</div>
       </div>
 
       {/* PARTICIPATION */}
@@ -111,25 +173,70 @@ const Reports = () => {
       {/* TOPICS */}
       <div>
         <h3 className="font-semibold border-b pb-1 mb-2">Topics Covered</h3>
-        <p>{report.topicsCovered}</p>
+        <textarea
+  className="w-full border rounded p-2"
+  value={report.topicsCovered || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      topicsCovered: e.target.value,
+    })
+  }
+/>
       </div>
 
       {/* AGENDA */}
       <div>
         <h3 className="font-semibold border-b pb-1 mb-2">Agenda</h3>
-        <p>{report.agenda}</p>
+        <textarea
+  className="w-full border rounded p-2"
+  value={report.agenda || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      agenda: e.target.value,
+    })
+  }
+/>
       </div>
 
       {/* SUMMARY */}
       <div>
         <h3 className="font-semibold border-b pb-1 mb-2">Summary</h3>
-        <p>{report.summary}</p>
+        <textarea
+  className="w-full border rounded p-2"
+  value={report.summary || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      summary: e.target.value,
+    })
+  }
+/>
       </div>
 
       {/* COORDINATORS */}
       <div className="grid grid-cols-2 gap-4">
-        <p><b>Faculty Coordinator:</b> {report.facultyCoordinator}</p>
-        <p><b>Student Coordinator:</b> {report.studentCoordinator}</p>
+<input
+  className="w-full border rounded p-2"
+  value={report.facultyCoordinator || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      facultyCoordinator: e.target.value,
+    })
+  }
+/>
+<input
+  className="w-full border rounded p-2"
+  value={report.studentCoordinator || ""}
+  onChange={(e) =>
+    setReport({
+      ...report,
+      studentCoordinator: e.target.value,
+    })
+  }
+/>
       </div>
 
       {/* BROCHURE */}
@@ -146,6 +253,48 @@ const Reports = () => {
         </div>
       )}
 
+      <button
+  onClick={async () => {
+    try {
+
+      await api.patch(
+        `/events/${report._id}/report`,
+        report
+      );
+
+      alert("Report saved");
+
+    } catch (err) {
+      console.error(err);
+    }
+  }}
+  className="bg-blue-600 text-white px-4 py-2 rounded"
+>
+  Save Report
+</button>
+
+<button
+  onClick={async () => {
+    try {
+
+      await api.patch(
+        `/events/${report._id}/submit-report`,
+        {
+          reportSubmitted: true,
+        }
+      );
+
+      alert("Submitted to admin");
+
+    } catch (err) {
+      console.error(err);
+    }
+  }}
+  className="bg-green-600 text-white px-4 py-2 rounded ml-2"
+>
+  Submit To Admin
+</button>
+
       {/* DOWNLOAD BUTTON */}
       <button
         onClick={() => window.print()}
@@ -159,6 +308,8 @@ const Reports = () => {
 )}
 
     </div>
+
+    
   );
 };
 

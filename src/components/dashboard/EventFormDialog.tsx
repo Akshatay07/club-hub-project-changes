@@ -206,6 +206,130 @@ const EventFormDialog = ({
             <Input type="file" onChange={(e) => setBrochure(e.target.files?.[0] || null)} />
           </div>
 
+          <div>
+  <Label>Event Type</Label>
+  <Input
+    value={type}
+    onChange={(e) => setType(e.target.value)}
+    placeholder="Workshop / Seminar / Hackathon"
+  />
+</div>
+
+<div>
+  <Label>Department</Label>
+  <Input
+    value={department}
+    onChange={(e) => setDepartment(e.target.value)}
+    placeholder="CSE / MCA / AIML"
+  />
+</div>
+
+<div>
+  <Label>Venue</Label>
+  <Input
+    value={venue}
+    onChange={(e) => setVenue(e.target.value)}
+    placeholder="Seminar Hall"
+  />
+</div>
+
+<div>
+  <Label>Resource Person Name</Label>
+  <Input
+    value={rpName}
+    onChange={(e) => setRpName(e.target.value)}
+    placeholder="Speaker Name"
+  />
+</div>
+
+<div>
+  <Label>Resource Organization</Label>
+  <Input
+    value={rpOrg}
+    onChange={(e) => setRpOrg(e.target.value)}
+    placeholder="Company / College"
+  />
+</div>
+
+<div>
+  <Label>Faculty Internal</Label>
+  <Input
+    type="number"
+    value={facInt}
+    onChange={(e) => setFacInt(Number(e.target.value))}
+  />
+</div>
+
+<div>
+  <Label>Faculty External</Label>
+  <Input
+    type="number"
+    value={facExt}
+    onChange={(e) => setFacExt(Number(e.target.value))}
+  />
+</div>
+
+<div>
+  <Label>Students Internal</Label>
+  <Input
+    type="number"
+    value={stuInt}
+    onChange={(e) => setStuInt(Number(e.target.value))}
+  />
+</div>
+
+<div>
+  <Label>Students External</Label>
+  <Input
+    type="number"
+    value={stuExt}
+    onChange={(e) => setStuExt(Number(e.target.value))}
+  />
+</div>
+
+<div>
+  <Label>Topics Covered</Label>
+  <Input
+    value={topics}
+    onChange={(e) => setTopics(e.target.value)}
+    placeholder="AI, Cloud, ML"
+  />
+</div>
+
+<div>
+  <Label>Faculty Coordinator</Label>
+  <Input
+    value={facCoord}
+    onChange={(e) => setFacCoord(e.target.value)}
+  />
+</div>
+
+<div>
+  <Label>Student Coordinator</Label>
+  <Input
+    value={stuCoord}
+    onChange={(e) => setStuCoord(e.target.value)}
+  />
+</div>
+
+<div>
+  <Label>Agenda</Label>
+  <textarea
+    className="w-full border rounded-md p-2"
+    value={agenda}
+    onChange={(e) => setAgenda(e.target.value)}
+  />
+</div>
+
+<div>
+  <Label>Summary</Label>
+  <textarea
+    className="w-full border rounded-md p-2"
+    value={summary}
+    onChange={(e) => setSummary(e.target.value)}
+  />
+</div>
+
           <DialogFooter>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="animate-spin mr-2" />}

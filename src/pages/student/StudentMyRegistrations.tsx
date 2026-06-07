@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
+
+
 const statusStyles: Record<string, string> = {
   registered: "bg-blue-100 text-blue-600",
   attended: "bg-green-100 text-green-600",

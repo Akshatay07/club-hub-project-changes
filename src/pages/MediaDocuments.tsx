@@ -4,6 +4,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import { Trash2 } from "lucide-react";
+
 
 const MediaDocuments = () => {
   const [data, setData] = useState([]);
@@ -23,12 +37,17 @@ const MediaDocuments = () => {
     }
   };
 
-  const handleDelete = async (eventId: string, fileId: string) => {
-  if (!window.confirm("Move to trash?")) return;
-
+ const handleDelete = async (eventId: string, fileId: string) => {
   try {
-await api.delete(`/events/${eventId}/file/${fileId}`);
-    // ✅ remove from UI immediately
+    console.log("EVENT ID:", eventId);
+    console.log("FILE ID:", fileId);
+
+    const res = await api.delete(
+      `/events/${eventId}/file/${fileId}`
+    );
+
+    console.log("DELETE SUCCESS:", res.data);
+
     setData((prev: any[]) =>
       prev.map((event) => ({
         ...event,
@@ -37,9 +56,9 @@ await api.delete(`/events/${eventId}/file/${fileId}`);
         ),
       }))
     );
-
-  } catch (err) {
-    console.error("Delete failed", err);
+  } catch (err: any) {
+    console.error("DELETE ERROR:", err.response?.data);
+    console.error(err);
   }
 };
 
@@ -80,7 +99,7 @@ await api.delete(`/events/${eventId}/file/${fileId}`);
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Media & Documents</h1>
+<h1 className="text-3xl font-bold tracking-tight"></h1>
           <p className="text-sm text-muted-foreground">
             Manage all uploaded files
           </p>
@@ -103,8 +122,11 @@ await api.delete(`/events/${eventId}/file/${fileId}`);
 
       {/* EVENTS */}
       {filteredData.map((event: any) => (
-        <Card key={event._id}>
-          <CardContent className="p-5 space-y-4">
+<Card
+  key={event._id}
+  className="shadow-sm hover:shadow-md transition-shadow"
+>
+<CardContent className="p-5 space-y-4">
 
             {/* EVENT HEADER */}
             <div className="flex justify-between">
@@ -152,8 +174,8 @@ await api.delete(`/events/${eventId}/file/${fileId}`);
               {event.attachments.map((file: any) => (
                 <div
                   key={file._id}
-                  className="flex items-center justify-between border rounded px-4 py-2"
-                >
+className="flex items-center justify-between rounded-lg border bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+>
                 <div className="flex flex-col gap-1 w-[60%]">
 
   <div className="flex items-center gap-3">
@@ -202,15 +224,53 @@ await api.delete(`/events/${eventId}/file/${fileId}`);
                     </a>
 
                     {/* DELETE */}
-                    <Button
-  size="sm"
-  variant="destructive"
-  onClick={() =>
-    handleDelete(event._id, file._id)
-  }
->
-  Delete
-</Button>
+                 <AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button
+      size="sm"
+      variant="destructive"
+    >
+      <Trash2 className="h-4 w-4 mr-1" />
+      Delete
+    </Button>
+  </AlertDialogTrigger>
+
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>
+        Move file to Trash?
+      </AlertDialogTitle>
+
+      <AlertDialogDescription>
+        <div className="mt-3 border rounded-md p-3 bg-muted">
+          <p className="font-medium">
+            {file.originalName}
+          </p>
+        </div>
+
+        <p className="mt-4">
+          This file will be removed from Media Documents
+          and moved to Trash. You can restore it later.
+        </p>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+
+    <AlertDialogFooter>
+      <AlertDialogCancel>
+        Cancel
+      </AlertDialogCancel>
+
+      <AlertDialogAction
+        className="bg-red-600 hover:bg-red-700"
+        onClick={() =>
+          handleDelete(event._id, file._id)
+        }
+      >
+        Move to Trash
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
                   </div>
                 </div>
               ))}

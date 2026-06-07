@@ -11,8 +11,9 @@ router.use(auth);
 router.get("/", async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
-      .populate("studentId", "name email")
-      .populate("eventId", "name date");
+  .populate("studentId", "name email")
+  .populate("eventId", "name date")
+  .populate("clubId", "name");
 
     res.json(feedbacks);
   } catch (err) {

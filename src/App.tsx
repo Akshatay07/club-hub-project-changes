@@ -10,14 +10,14 @@ import {
   useLocation,
 } from "react-router-dom";
 import ResetPassword from "./pages/ResetPassword";
-
+import AdminReports from "./pages/AdminReports";
 import MediaDocuments from "@/pages/MediaDocuments";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import Settings from "./pages/Settings";
-
+import Messages from "./pages/Messages";
 // Pages
 import VerifyOtp from "./pages/VerifyOtp";
 import Login from "./pages/Login";
@@ -28,7 +28,7 @@ import SetPassword from "./pages/SetPassword";
 import Index from "./pages/Index";
 import Clubs from "./pages/Clubs";
 import Events from "./pages/Events";
-import Reports from "./pages/Reports";
+import Reports from "./pages/faculty/FacultyReports";
 import TrashPage from "@/pages/TrashPage";
 
 // Student
@@ -111,7 +111,7 @@ const App = () => (
 
               {/* ROOT */}
               <Route path="/" element={<LoginRoute />} />
-
+<Route path="/messages" element={<Messages />} />
 
 <Route path="/faculty/events/:eventId/attendance" element={<FacultyAttendance />} />
               {/* ================= ADMIN ================= */}
@@ -193,18 +193,19 @@ const App = () => (
                 }
               />
 
-              <Route
-                path="/admin/reports"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["admin"]}>
-                      <DashboardLayout>
-                        <Reports />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
+<Route
+  path="/admin/reports"
+  element={
+    <ProtectedRoute>
+      <RoleRoute allowedRoles={["admin"]}>
+        <DashboardLayout>
+          <AdminReports />
+        </DashboardLayout>
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
+              
 
               <Route
                 path="/admin/faculty-assignment"
@@ -232,6 +233,19 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+
+<Route
+  path="/faculty/reports"
+  element={
+    <ProtectedRoute>
+      <RoleRoute allowedRoles={["faculty"]}>
+        <DashboardLayout>
+          <Reports />
+        </DashboardLayout>
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
 
               <Route
                 path="/faculty/events"

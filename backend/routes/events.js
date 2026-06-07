@@ -309,6 +309,31 @@ router.delete("/:id", auth, permit("admin", "faculty"), async (req, res) => {
   }
 });
 
+// ================= SUBMITTED REPORTS =================
+router.get(
+  "/submitted-reports",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const reports = await Event.find({
+        reportSubmitted: true,
+      })
+        .populate("clubId", "name")
+        .populate("facultyId", "name email")
+        .sort({ updatedAt: -1 });
+
+      res.json(reports);
+    } catch (err) {
+      console.error("REPORT ERROR:", err);
+
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
 // ================= GET SINGLE EVENT =================
 router.get("/:id", async (req, res) => {
   try {
@@ -382,5 +407,256 @@ router.get("/club/:id/stats", async (req, res) => {
     rating: Number(rating.toFixed(1)),
   });
 });
+
+router.patch(
+  "/:id/report",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+try {
+
+    const updated = await Event.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    res.json(updated);
+
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+
+router.patch(
+  "/:id/submit-report",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+try {
+
+    const updated = await Event.findByIdAndUpdate(
+      req.params.id,
+      {
+        reportSubmitted: true,
+      },
+      { new: true }
+    );
+
+    res.json(updated);
+
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+
+
+
+
+router.patch("/:id/approve-report", auth, permit("admin"), async (req, res) => {
+  const report = await Event.findByIdAndUpdate(
+    req.params.id,
+    {
+      reportApproved: true,
+      reportRejected: false,
+    },
+    { new: true }
+  );
+
+  res.json(report);
+});
+
+router.patch("/:id/reject-report", auth, permit("admin"), async (req, res) => {
+  const report = await Event.findByIdAndUpdate(
+    req.params.id,
+    {
+      reportApproved: false,
+      reportRejected: true,
+    },
+    { new: true }
+  );
+
+  res.json(report);
+});
+
+
+router.get(
+  "/admin/media",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const events = await Event.find({
+        attachments: { $exists: true, $ne: [] }
+      })
+        .populate("clubId", "name")
+        .sort({ updatedAt: -1 });
+
+      res.json(events);
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/admin/trash",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const events = await Event.find({})
+        .populate("clubId", "name");
+
+      const deletedFiles = [];
+
+      events.forEach((event) => {
+        (event.attachments || []).forEach((file) => {
+          if (file.isDeleted) {
+            deletedFiles.push({
+              eventId: event._id,
+              eventName: event.name,
+              file,
+            });
+          }
+        });
+      });
+
+      res.json(deletedFiles);
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+
+router.put(
+  "/:eventId/file/:fileId/restore",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const { eventId, fileId } = req.params;
+
+      const event = await Event.findById(eventId);
+
+      if (!event) {
+        return res.status(404).json({
+          message: "Event not found",
+        });
+      }
+
+      const file = event.attachments.id(fileId);
+
+      if (!file) {
+        return res.status(404).json({
+          message: "File not found",
+        });
+      }
+
+      file.isDeleted = false;
+      file.deletedAt = null;
+      file.deletedBy = null;
+
+      await event.save();
+
+      res.json({
+        message: "File restored successfully",
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+
+router.delete(
+  "/:eventId/file/:fileId/permanent",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const { eventId, fileId } = req.params;
+
+      const event = await Event.findById(eventId);
+
+      if (!event) {
+        return res.status(404).json({
+          message: "Event not found",
+        });
+      }
+
+      event.attachments = event.attachments.filter(
+        (f) => String(f._id) !== String(fileId)
+      );
+
+      await event.save();
+
+      res.json({
+        message: "File permanently deleted",
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
+
+router.delete(
+  "/:eventId/file/:fileId",
+  auth,
+  permit("admin"),
+  async (req, res) => {
+    try {
+      const { eventId, fileId } = req.params;
+
+      const event = await Event.findById(eventId);
+
+      if (!event) {
+        return res.status(404).json({
+          message: "Event not found",
+        });
+      }
+
+      const file = event.attachments.id(fileId);
+
+      if (!file) {
+        return res.status(404).json({
+          message: "File not found",
+        });
+      }
+
+      file.isDeleted = true;
+      file.deletedAt = new Date();
+      file.deletedBy = req.user._id;
+
+      await event.save();
+
+      res.json({
+        message: "Moved to trash",
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
+  }
+);
 
 export default router;

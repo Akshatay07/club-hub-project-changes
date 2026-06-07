@@ -39,9 +39,14 @@ const adminNav = [
   { title: "Clubs", url: "/admin/clubs", icon: Users },
   { title: "Events", url: "/admin/events", icon: CalendarDays },
   { title: "Faculty", url: "/admin/faculty-assignment", icon: GraduationCap }, // ✅ FIXED
-  { title: "Reports", url: "/admin/reports", icon: FileText },
-    { title: "Trash", url: "/admin/trash", icon: Trash2 },
+    { title: "Messages", url: "/messages", icon: MessageSquare }, 
+  { title: "Trash", url: "/admin/trash", icon: Trash2 },
   { title: "Settings", url: "/admin/settings", icon: Settings },
+{
+  title: "Reports",
+  url: "/admin/reports",
+  icon: FileText,
+},
 ];
 
 const studentNav = [
@@ -49,6 +54,7 @@ const studentNav = [
   { title: "Clubs", url: "/student/clubs", icon: Users },
   { title: "My Registrations", url: "/student/registrations", icon: ClipboardList },
   { title: "Notifications", url: "/student/notifications", icon: Bell },
+    { title: "Messages", url: "/messages", icon: MessageSquare },
   { title: "Profile", url: "/student/profile", icon: GraduationCap },
 ];
 
@@ -59,6 +65,8 @@ const facultyNav = [
   { title: "Analytics", url: "/faculty/analytics", icon: BarChart3 },
   { title: "Members", url: "/faculty/members", icon: Users },
   { title: "Feedback", url: "/faculty/feedback", icon: MessageSquare },
+    { title: "Messages", url: "/messages", icon: MessageSquare },
+  { title: "Reports", url: "/faculty/reports", icon: FileText },
 ];
 
 export function AppSidebar() {

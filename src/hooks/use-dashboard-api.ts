@@ -187,8 +187,8 @@ export const useMediaStats = () =>
 
 export const useComplaints = () =>
   useQuery({
-    queryKey: ["complaints"],
-    queryFn: () => fetchData("/complaints"),
+    queryKey: ["complaints-feed"],
+    queryFn: () => fetchData("/dashboard/complaints-feed"),
     ...baseConfig,
   });
 

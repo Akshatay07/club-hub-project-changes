@@ -21,7 +21,7 @@ import cron from "node-cron";
 import Event from "./models/Event.js";
 import EventRegistration from "./models/EventRegistration.js";
 import userRoutes from "./routes/user.js";
-
+import messageRoutes from "./routes/message.js";
 
 
 import path from "path";
@@ -80,13 +80,22 @@ app.use(
     origin: allowedOrigins,
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
   })
 );
 
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
+
+app.use("/api/messages", messageRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/clubs", clubRoutes);
@@ -107,6 +116,12 @@ app.use((err, _req, res, _next) => {
 });
 
 io.on("connection", (socket) => {
+  socket.on("sendMessage", (message) => {
+  io.to(String(message.receiverId)).emit(
+    "newMessage",
+    message
+  );
+});
   socket.on("register", ({ userId, role, clubIds = [] }) => {
     if (!userId) {
       return;

@@ -8,8 +8,11 @@ const FacultyFeedback = () => {
   const { data = [], isLoading } = useMyFeedback();
 
   // ✅ SAFE FILTER (avoid crash if undefined)
-  const clubFeedback = data?.filter((f: any) => f.targetType === "club") || [];
-  const eventFeedback = data?.filter((f: any) => f.targetType === "event") || [];
+  const clubFeedback =
+  data?.filter((f) => f.clubId) || [];
+
+const eventFeedback =
+  data?.filter((f) => f.eventId) || [];
 
   // ✅ SAFE STARS
   const renderStars = (rating: number = 0) => (
@@ -72,7 +75,7 @@ const FacultyFeedback = () => {
                       <div className="flex justify-between">
                         <div>
                           <p className="font-medium text-sm">
-                            {fb.targetName || "Unknown"}
+{fb.clubId?.name || "Unknown Club"}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {fb.comment || "No comment"}
@@ -114,7 +117,7 @@ const FacultyFeedback = () => {
                       <div className="flex justify-between">
                         <div>
                           <p className="font-medium text-sm">
-                            {fb.targetName || "Unknown"}
+                            {fb.eventId?.name || "Unknown Event"}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {fb.comment || "No comment"}

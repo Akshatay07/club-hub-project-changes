@@ -203,34 +203,42 @@ router.get("/my-feedback", async (req, res) => {
 
 router.post("/feedback", async (req, res) => {
   try {
-    const attendance = await Attendance.findOne({
-      eventId: req.body.eventId,
+    const { targetType, targetId, rating, comment } = req.body;
+
+    let feedbackData = {
       studentId: req.user._id,
-    });
-    if (!attendance) {
-      return res.status(403).json({ message: "Feedback is allowed only after attendance is marked" });
+      rating,
+      comment,
+      targetType,
+    };
+
+    if (targetType === "club") {
+      feedbackData.clubId = targetId;
     }
 
-    const event = await Event.findById(req.body.eventId);
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-
-    const feedback = await Feedback.findOneAndUpdate(
-      { studentId: req.user._id, eventId: event._id },
-      {
+    if (targetType === "event") {
+      const attendance = await Attendance.findOne({
+        eventId: targetId,
         studentId: req.user._id,
-        eventId: event._id,
-        clubId: event.clubId,
-        rating: req.body.rating,
-        comment: req.body.comment || "",
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+      });
+
+      if (!attendance) {
+        return res.status(403).json({
+          message: "Feedback is allowed only after attendance is marked",
+        });
+      }
+
+      const event = await Event.findById(targetId);
+
+      feedbackData.eventId = targetId;
+      feedbackData.clubId = event.clubId;
+    }
+
+    const feedback = await Feedback.create(feedbackData);
 
     res.status(201).json(feedback);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

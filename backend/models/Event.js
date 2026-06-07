@@ -109,6 +109,96 @@ studentParticipants: {
   external: { type: Number, default: 0 },
 },
 
+eventType: {
+  type: String,
+  default: "",
+},
+
+department: {
+  type: String,
+  default: "",
+},
+
+venue: {
+  type: String,
+  default: "",
+},
+
+resourcePersonName: {
+  type: String,
+  default: "",
+},
+
+resourceOrganization: {
+  type: String,
+  default: "",
+},
+
+facultyInternal: {
+  type: Number,
+  default: 0,
+},
+
+facultyExternal: {
+  type: Number,
+  default: 0,
+},
+
+studentsInternal: {
+  type: Number,
+  default: 0,
+},
+
+studentsExternal: {
+  type: Number,
+  default: 0,
+},
+
+topicsCovered: {
+  type: String,
+  default: "",
+},
+
+agenda: {
+  type: String,
+  default: "",
+},
+
+summary: {
+  type: String,
+  default: "",
+},
+
+facultyCoordinator: {
+  type: String,
+  default: "",
+},
+
+studentCoordinator: {
+  type: String,
+  default: "",
+},
+
+reportSubmitted: {
+  type: Boolean,
+  default: false,
+},
+
+reportApproved: {
+  type: Boolean,
+  default: false,
+},
+
+reportRejected: {
+  type: Boolean,
+  default: false,
+},
+
+reportRemarks: {
+  type: String,
+  default: "",
+},
+
 certificatesPrinted: { type: Boolean, default: false },
 feedbackCollected: { type: Boolean, default: false },
 attendanceAttached: { type: Boolean, default: false },

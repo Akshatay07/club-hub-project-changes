@@ -23,9 +23,10 @@ const ComplaintsFeed = () => {
         ) : Array.isArray(complaints) && complaints.length > 0 ? (
           complaints.map((c) => {
             const type = c?.type || "alert";
-            const Icon = type === "rating" ? Star : AlertTriangle;
+            const Icon =
+  type === "rating-drop" ? Star : AlertTriangle;
             const iconColor =
-              type === "rating"
+              type === "rating-drop"
                 ? "text-status-critical"
                 : "text-status-warning";
 
@@ -37,9 +38,17 @@ const ComplaintsFeed = () => {
                 <Icon className={`h-4 w-4 mt-0.5 ${iconColor}`} />
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-card-foreground">
-                    {c.text || "No text"}
-                  </p>
+                  <div>
+  <p className="text-sm font-medium text-card-foreground">
+    {c.message}
+  </p>
+
+  {c.comment && (
+    <p className="text-xs text-muted-foreground mt-1">
+      {c.comment}
+    </p>
+  )}
+</div>
 
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {c.createdAt

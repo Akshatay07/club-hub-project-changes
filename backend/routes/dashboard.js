@@ -25,18 +25,35 @@ router.get("/metrics", async (req, res) => {
   try {
     const totalClubs = await Club.countDocuments();
     const eventsThisMonth = await Event.countDocuments();
-    const pendingApprovals = await Event.countDocuments({ status: "pending" });
+    const pendingApprovals = await Event.countDocuments({
+      status: "pending",
+    });
+
+    const feedbacks = await Feedback.find();
+
+    const avgRating =
+      feedbacks.length > 0
+        ? (
+            feedbacks.reduce(
+              (sum, item) => sum + item.rating,
+              0
+            ) / feedbacks.length
+          ).toFixed(1)
+        : "0.0";
 
     res.json({
       totalClubs,
       eventsThisMonth,
       pendingApprovals,
-      avgRating: 4.2, // temporary
+      avgRating,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({
+      message: err.message,
+    });
   }
 });
+
 
 router.get("/quick-stats", auth, async (req, res) => {
   try {
@@ -196,7 +213,10 @@ router.get("/complaints-feed", auth, async (req, res) => {
         ? { clubId: { $in: req.user.assignedClubs || [] } }
         : {};
     const complaints = await Complaint.find(filter).sort({ createdAt: -1 }).limit(20);
-    const lowRatings = await Feedback.find({ rating: { $lte: 2 } }).sort({ createdAt: -1 }).limit(10);
+const feedbacks = await Feedback.find()
+  .populate("clubId", "name")
+  .sort({ createdAt: -1 })
+  .limit(10);
 
     res.json([
       ...complaints.map((item) => ({
@@ -205,12 +225,12 @@ router.get("/complaints-feed", auth, async (req, res) => {
         message: item.content,
         createdAt: item.createdAt,
       })),
-      ...lowRatings.map((item) => ({
-        _id: item._id,
-        type: "rating-drop",
-        message: `A rating of ${item.rating}/5 was submitted`,
-        createdAt: item.createdAt,
-      })),
+      ...feedbacks.map((item) => ({
+  _id: item._id,
+  type: "rating",
+  message: `${item.clubId?.name || "Club"} received ${item.rating}/5 rating. ${item.comment || ""}`,
+  createdAt: item.createdAt,
+})),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
   } catch (error) {
     res.status(500).json({ message: error.message });
