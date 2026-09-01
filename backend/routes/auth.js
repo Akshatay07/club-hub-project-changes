@@ -11,7 +11,7 @@ function safeUser(user) {
 
 router.post("/set-password", async (req, res) => {
   try {
-const { token, password, regNo } = req.body;
+    const { token, password, regNo } = req.body;
 
     const user = await User.findOne({
       resetToken: token,
@@ -22,7 +22,9 @@ const { token, password, regNo } = req.body;
       return res.status(400).json({ message: "Invalid or expired token" });
     }
 
-user.regNo = regNo;
+    user.password = password;   // ADD THIS
+    user.regNo = regNo;
+
     user.resetToken = undefined;
     user.resetTokenExpiry = undefined;
     user.mustChangePassword = false;
@@ -58,6 +60,7 @@ router.post("/reset-password", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
+
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
@@ -68,7 +71,12 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const valid = await user.comparePassword(password);
+    console.log("LOGIN EMAIL:", email);
+
+const valid = await user.comparePassword(password);
+
+console.log("PASSWORD ENTERED:", password);
+console.log("PASSWORD MATCH:", valid);
     if (!valid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -166,13 +174,13 @@ registerNumber = registerNumber.trim().toUpperCase();
 const existing = await User.findOne({
   $or: [
     { email: email.toLowerCase() },
+    { regNo: registerNumber },
     { studentId: registerNumber },
-    { registerNumber: registerNumber },
   ],
 });
 
 if (existing) {
-  return res.status(400).json({ message: "An account already exists for this email or register number" });
+  return res.status(400).json({ message: "An account already exists for this email or Student ID" });
 }
 
 const otp = randomNumericCode(6);
@@ -183,7 +191,7 @@ const user = await User.create({
   password,
 
   regNo: registerNumber,
-studentId: registerNumber,
+  studentId: registerNumber,
 
   department: department || "",
   year: year || "",
@@ -210,7 +218,12 @@ res.status(201).json({
 });
 
 } catch (error) {
-res.status(500).json({ message: error.message });
+  if (error.code === 11000) {
+    return res.status(400).json({
+      message: "This Student ID or Email is already taken. Please enter a different, unique Student ID.",
+    });
+  }
+  res.status(500).json({ message: error.message });
 }
 });
 

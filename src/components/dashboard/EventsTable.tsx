@@ -80,6 +80,17 @@ const EventsTable = () => {
     setSelected([]);
   };
 
+  const handleStatusChange = async (id: string, newStatus: "approved" | "rejected") => {
+    try {
+      await api.put(`/admin/events/${id}/status`, { status: newStatus });
+      setData((prev) =>
+        prev.map((e) => (e._id === id ? { ...e, status: newStatus } : e))
+      );
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+  };
+
   const handleEditSave = async () => {
     try {
       if (editData.status === "approved") return;
@@ -280,7 +291,27 @@ const EventsTable = () => {
                 )}
               </td>
 
-              <td className="flex gap-2">
+              <td className="flex items-center gap-2">
+                {e.status === "pending" && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"
+                      onClick={() => handleStatusChange(e._id, "approved")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/40 text-red-500 hover:bg-red-500/10 font-medium"
+                      onClick={() => handleStatusChange(e._id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+
                 <Button
                   size="sm"
                   disabled={e.status === "approved"}

@@ -134,6 +134,11 @@ router.put("/events/:id/status", async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("event:updated", event);
+    }
+
     res.json({ message: "Status updated", event });
   } catch (err) {
     console.error(err);
@@ -164,7 +169,7 @@ router.post("/create-club", async (req, res) => {
   }
 });
 
-router.post("/admin/assign-faculty", async (req, res) => {
+router.post("/assign-faculty", async (req, res) => {
   try {
     const { name, email, clubId } = req.body;
 
@@ -174,15 +179,14 @@ router.post("/admin/assign-faculty", async (req, res) => {
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
-    const hashed = await bcrypt.hash(tempPassword, 10);
 
-    const user = await User.create({
-      name,
-      email,
-      password: hashed,
-      role: "faculty",
-      assignedClubs: clubId ? [clubId] : [],
-    });
+const user = await User.create({
+  name,
+  email,
+  password: tempPassword,
+  role: "faculty",
+  assignedClubs: clubId ? [clubId] : [],
+});
 
     if (clubId) {
       await Club.findByIdAndUpdate(clubId, {
@@ -199,18 +203,24 @@ router.post("/admin/assign-faculty", async (req, res) => {
     const resetUrl = `http://localhost:8080/set-password/${resetToken}`;
 
     await sendEmail({
-      to: email,
-      subject: "Faculty Account Created",
-      text: `
-Hello ${name}
+  to: email,
+  subject: "Faculty Account Created",
+  html: `
+    <h2>Faculty Account Created</h2>
 
-Email: ${email}
-Password: ${tempPassword}
+    <p>Hello ${name}</p>
 
-Reset here:
-${resetUrl}
-`,
-    });
+    <p><b>Email:</b> ${email}</p>
+
+    <p><b>Temporary Password:</b> ${tempPassword}</p>
+
+    <p>
+      <a href="${resetUrl}">
+        Reset Password
+      </a>
+    </p>
+  `,
+});
 
     res.json({ message: "Faculty created" });
 
@@ -275,7 +285,7 @@ router.get("/faculty", async (req, res) => {
   }
 });
 
-router.put("/admin/faculty/:id/assign", async (req, res) => {
+router.put("/faculty/:id/assign", async (req, res) => {
   try {
     const { id } = req.params;
     const { clubId } = req.body;

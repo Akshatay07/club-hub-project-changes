@@ -90,7 +90,7 @@ const ClubsPage = () => {
     } catch (err) {
       console.error(err);
     }
-  };
+  };0
 
   const handleLeave = async (clubId: string) => {
     try {
