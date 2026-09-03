@@ -79,8 +79,8 @@ export function AppSidebar() {
   const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
 
   const role = user?.role ?? "admin";
-  const navItems = role === "student" ? studentNav : role === "faculty" ? facultyNav : adminNav;
-  const panelLabel = role === "student" ? "Student Portal" : role === "faculty" ? "Faculty Panel" : "Admin Panel";
+  const navItems = role === "faculty" ? facultyNav : adminNav;
+  const panelLabel = role === "faculty" ? "Faculty Panel" : "Admin Panel";
 
   return (
     <Sidebar collapsible="icon">

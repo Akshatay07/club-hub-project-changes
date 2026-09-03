@@ -65,7 +65,7 @@ const RoleRoute = ({
   if (!allowedRoles.includes(user.role)) {
     if (user.role === "admin") return <Navigate to="/admin" replace />;
     if (user.role === "faculty") return <Navigate to="/faculty" replace />;
-    if (user.role === "student") return <Navigate to="/student" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
@@ -83,7 +83,7 @@ const LoginRoute = () => {
 
     if (user.role === "admin") target = "/admin";
     else if (user.role === "faculty") target = "/faculty";
-    else if (user.role === "student") target = "/student";
+    else target = "/login";
 
     if (location.pathname !== target) {
       return <Navigate to={target} replace />;

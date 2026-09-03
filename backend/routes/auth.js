@@ -60,8 +60,7 @@ router.post("/reset-password", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
@@ -71,12 +70,24 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    console.log("LOGIN EMAIL:", email);
+    // Disallow student login
+    if (user.role === "student") {
+      return res.status(403).json({
+        message: "Student login is disabled. Only Admin and Faculty accounts can log in.",
+      });
+    }
 
-const valid = await user.comparePassword(password);
+    // Role verification if specific role is targeted
+    if (role && user.role !== role) {
+      const correctOption = user.role === "admin" ? "Admin" : "Faculty";
+      return res.status(403).json({
+        message: `This account is registered as ${user.role}, not ${role}. Please use the "${correctOption}" login option.`,
+      });
+    }
 
-console.log("PASSWORD ENTERED:", password);
-console.log("PASSWORD MATCH:", valid);
+    console.log("LOGIN EMAIL:", email, "ROLE:", user.role);
+
+    const valid = await user.comparePassword(password);
     if (!valid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -91,140 +102,12 @@ console.log("PASSWORD MATCH:", valid);
 });
 
 router.post("/register", async (req, res) => {
-try {
-const { name, email, password, department, year } = req.body;
-
-// support both fields
-let registerNumber = req.body.registerNumber || req.body.studentId;
-
-if (!name || !email || !password || !registerNumber) {
-  return res.status(400).json({ message: "Missing required registration fields" });
-}
-
-registerNumber = registerNumber.trim().toUpperCase();
-
-const existing = await User.findOne({
-  $or: [
-    { email: email.toLowerCase() },
-    { studentId: registerNumber },      // old support
-    { registerNumber: registerNumber }, // new support
-  ],
+  return res.status(403).json({ message: "Student registration has been disabled. Only administrators can onboard users." });
 });
 
-if (existing) {
-  return res.status(400).json({ message: "An account already exists for this email or register number" });
-}
-
-const otp = randomNumericCode(6);
-
-const user = await User.create({
-  name,
-  email: email.toLowerCase(),
-  password,
-
-  // FIX HERE
-  regNo: registerNumber,
-  studentId: registerNumber, // keep for old logic
-
-  department: department || "",
-  year: year || "",
-  role: "student",
-  otp,
-  otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-  onboardingSource: "student_signup",
-  isApproved: true,
-  emailVerified: false,
-});
-
-await sendEmail({
-  to: user.email,
-  subject: "Verify your Club Hub account",
-  template: "student-register-otp",
-  html: `<p>Hello ${user.name},</p><p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-  text: `Your Club Hub OTP is ${otp}.`,
-  metadata: { userId: String(user._id) },
-});
-
-res.status(201).json({
-  message: "OTP sent to email",
-  email: user.email,
-});
-
-} catch (error) {
-console.error("ERROR:", error);
-res.status(500).json({ message: error.message });
-}
-});
 
 router.post("/signup", async (req, res) => {
-try {
-    console.log("BODY:", req.body);   // ✅ HERE
-
-
-const { name, email, password, department, year } = req.body;
-
-let registerNumber = req.body.registerNumber || req.body.studentId;
-
-if (!name || !email || !password || !registerNumber) {
-  return res.status(400).json({ message: "Missing required registration fields" });
-}
-
-registerNumber = registerNumber.trim().toUpperCase();
-
-const existing = await User.findOne({
-  $or: [
-    { email: email.toLowerCase() },
-    { regNo: registerNumber },
-    { studentId: registerNumber },
-  ],
-});
-
-if (existing) {
-  return res.status(400).json({ message: "An account already exists for this email or Student ID" });
-}
-
-const otp = randomNumericCode(6);
-
-const user = await User.create({
-  name,
-  email: email.toLowerCase(),
-  password,
-
-  regNo: registerNumber,
-  studentId: registerNumber,
-
-  department: department || "",
-  year: year || "",
-  role: "student",
-  otp,
-  otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-  onboardingSource: "student_signup",
-  isApproved: true,
-  emailVerified: false,
-});
-
-await sendEmail({
-  to: user.email,
-  subject: "Verify your Club Hub account",
-  template: "student-register-otp",
-  html: `<p>Hello ${user.name},</p><p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-  text: `Your Club Hub OTP is ${otp}.`,
-  metadata: { userId: String(user._id) },
-});
-
-res.status(201).json({
-  message: "OTP sent to email",
-  email: user.email,
-});
-
-} catch (error) {
-  if (error.code === 11000) {
-    return res.status(400).json({
-      message: "This Student ID or Email is already taken. Please enter a different, unique Student ID.",
-    });
-  }
-  res.status(500).json({ message: error.message });
-}
+  return res.status(403).json({ message: "Student registration has been disabled. Only administrators can onboard users." });
 });
 
 

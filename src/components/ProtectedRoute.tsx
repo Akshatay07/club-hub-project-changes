@@ -31,8 +31,9 @@ export default function ProtectedRoute({ children, role }: Props) {
   if (role && user.role !== role) {
     let target = "/";
 
-    if (user.role === "faculty") target = "/faculty";
-    if (user.role === "student") target = "/student/events";
+    if (user.role === "admin") target = "/admin";
+    else if (user.role === "faculty") target = "/faculty";
+    else target = "/login";
 
     if (location.pathname !== target) {
       return <Navigate to={target} replace />;

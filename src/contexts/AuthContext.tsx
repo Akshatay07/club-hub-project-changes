@@ -16,7 +16,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
+  login: (credentials: { email: string; password: string; role?: "admin" | "faculty" }) => Promise<void>;
   signup: (data: {
     name: string;
     email: string;
@@ -43,8 +43,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (storedUser && token && valid) {
         const parsed = JSON.parse(storedUser);
-        if (parsed?._id) {
+        if (parsed?._id && parsed.role !== "student") {
           setUser(parsed);
+        } else {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
         }
       } else {
         localStorage.removeItem("token");
@@ -80,11 +83,15 @@ useEffect(() => {
   }
 }, [user]);
 
-  const login = async (credentials: { email: string; password: string }) => {
+  const login = async (credentials: { email: string; password: string; role?: "admin" | "faculty" }) => {
     const res = await api.post("/auth/login", credentials);
 
     if (!res?.data?.user || !res?.data?.token) {
       throw new Error("Invalid response from server");
+    }
+
+    if (res.data.user.role === "student") {
+      throw new Error("Student login is disabled. Only Admin and Faculty accounts can log in.");
     }
 
     localStorage.setItem("token", res.data.token);
