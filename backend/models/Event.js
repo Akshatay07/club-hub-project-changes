@@ -87,6 +87,16 @@ const eventSchema = new mongoose.Schema(
     attendanceWindowEnd: { type: Date, default: null },
 
     attachments: [attachmentSchema],
+    signedAttendanceSheets: [
+      {
+        fileName: { type: String, default: "" },
+        originalName: { type: String, default: "" },
+        url: { type: String, default: "" },
+        size: { type: Number, default: 0 },
+        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // ===== NEW (REPORT FIELDS) =====
 

@@ -14,8 +14,9 @@ import { createNotification } from "../services/notificationService.js";
 import { recalculateClubHealth } from "../services/healthService.js";
 import User from "../models/User.js";
 import PDFDocument from "pdfkit";
-    import path from "path";
+import path from "path";
 import fs from "fs";
+import upload from "../middleware/upload.js";
 
 
 const router = express.Router();
@@ -473,14 +474,360 @@ doc.text("Signature", col.sign, y);
     doc.text("Faculty Signature: ____________________", 40, y + 20);
 
     doc.end();
-
   } catch (err) {
-  console.error(err);
+    console.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
 
-  if (!res.headersSent) {
+/* ================= SIGNED ATTENDANCE SHEETS (PDF) ================= */
+
+// UPLOAD signed attendance sheet (scanned PDF)
+router.post("/attendance/:eventId/signed-sheet", upload.single("file"), async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId);
+
+    if (!event || !req.assignedClubIds.includes(String(event.clubId))) {
+      return res.status(404).json({ message: "Event not found or unauthorized" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "PDF file is required" });
+    }
+
+    const isPdf =
+      req.file.mimetype === "application/pdf" ||
+      req.file.originalname.toLowerCase().endsWith(".pdf");
+
+    if (!isPdf) {
+      return res.status(400).json({ message: "Only PDF files are allowed for scanned signed attendance sheets" });
+    }
+
+    const sheetRecord = {
+      fileName: req.file.filename,
+      originalName: req.file.originalname,
+      url: `/uploads/${req.file.filename}`,
+      size: req.file.size,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date(),
+    };
+
+    if (!event.signedAttendanceSheets) {
+      event.signedAttendanceSheets = [];
+    }
+
+    event.signedAttendanceSheets.push(sheetRecord);
+    event.attendanceAttached = true;
+    await event.save();
+
+    res.status(201).json({
+      message: "Signed attendance sheet uploaded successfully",
+      sheet: sheetRecord,
+      sheets: event.signedAttendanceSheets,
+    });
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// GET signed sheets for an event
+router.get("/attendance/:eventId/signed-sheets", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).select("name signedAttendanceSheets attendanceAttached clubId");
+
+    if (!event || !req.assignedClubIds.includes(String(event.clubId))) {
+      return res.status(404).json({ message: "Event not found or unauthorized" });
+    }
+
+    res.json(event.signedAttendanceSheets || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE signed sheet
+router.delete("/attendance/:eventId/signed-sheet/:sheetId", async (req, res) => {
+  try {
+    const { eventId, sheetId } = req.params;
+    const event = await Event.findById(eventId);
+
+    if (!event || !req.assignedClubIds.includes(String(event.clubId))) {
+      return res.status(404).json({ message: "Event not found or unauthorized" });
+    }
+
+    const sheet = event.signedAttendanceSheets?.id(sheetId);
+    if (sheet) {
+      const filePath = path.join(process.cwd(), "uploads", sheet.fileName);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) { console.error("File unlink error:", e); }
+      }
+      sheet.deleteOne();
+    } else {
+      event.signedAttendanceSheets = (event.signedAttendanceSheets || []).filter(
+        (s) => String(s._id) !== sheetId
+      );
+    }
+
+    event.attendanceAttached = (event.signedAttendanceSheets?.length > 0);
+    await event.save();
+
+    res.json({ message: "Signed sheet deleted", sheets: event.signedAttendanceSheets });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/* ================= GOOGLE SHEETS & CSV IMPORT ================= */
+
+function parseCSVHelper(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rawHeaders: [], rows: [] };
+
+  function parseLine(line) {
+    const values = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  }
+
+  const rawHeaders = parseLine(lines[0]);
+  const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const rawValues = parseLine(lines[i]);
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h] = rawValues[idx] || "";
+    });
+    row._values = rawValues;
+    rows.push(row);
+  }
+  return { headers, rawHeaders, rows };
 }
+
+router.post("/attendance/:eventId/import-google-sheet", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { sheetUrl, csvData, presentStudentIds, absentStudentIds, applyImmediately } = req.body;
+
+    const event = await Event.findById(eventId);
+    if (!event || !req.assignedClubIds.includes(String(event.clubId))) {
+      return res.status(404).json({ message: "Event not found or unauthorized" });
+    }
+
+    // Direct apply from client preview if provided
+    if (Array.isArray(presentStudentIds) || Array.isArray(absentStudentIds)) {
+      if (Array.isArray(presentStudentIds) && presentStudentIds.length > 0) {
+        await EventRegistration.updateMany(
+          { eventId, studentId: { $in: presentStudentIds } },
+          { $set: { status: "attended" } }
+        );
+        for (const sId of presentStudentIds) {
+          await Attendance.findOneAndUpdate(
+            { eventId, studentId: sId },
+            { eventId, studentId: sId, checkInTime: new Date() },
+            { upsert: true }
+          );
+        }
+      }
+
+      if (Array.isArray(absentStudentIds) && absentStudentIds.length > 0) {
+        await EventRegistration.updateMany(
+          { eventId, studentId: { $in: absentStudentIds } },
+          { $set: { status: "absent" } }
+        );
+      }
+
+      const attendedCount = await EventRegistration.countDocuments({ eventId, status: "attended" });
+      const totalRegs = await EventRegistration.countDocuments({ eventId });
+      event.attendanceCount = attendedCount;
+      event.attendanceRate = totalRegs > 0 ? Math.round((attendedCount / totalRegs) * 100) : 0;
+      await event.save();
+
+      return res.json({
+        message: "Attendance applied successfully",
+        attendedCount,
+        totalRegs,
+      });
+    }
+
+    let csvContent = csvData || "";
+
+    if (sheetUrl) {
+      const match1 = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
+      const match2 = sheetUrl.match(/\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/i);
+
+      let fetchUrl = "";
+      if (match2 && match2[1]) {
+        fetchUrl = `https://docs.google.com/spreadsheets/d/e/${match2[1]}/pub?output=csv`;
+      } else if (match1 && match1[1]) {
+        const sheetId = match1[1];
+        const gidMatch = sheetUrl.match(/[#&?]gid=([0-9]+)/);
+        const gid = gidMatch ? gidMatch[1] : "0";
+        fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+      } else {
+        return res.status(400).json({ message: "Invalid Google Sheets URL format. Please provide a valid share link." });
+      }
+
+      try {
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          return res.status(400).json({
+            message: `Could not fetch Google Sheet (HTTP ${response.status}). Please ensure link sharing is set to 'Anyone with the link can view'.`,
+          });
+        }
+        csvContent = await response.text();
+      } catch (fetchErr) {
+        return res.status(400).json({
+          message: `Failed to connect to Google Sheets: ${fetchErr.message}. Make sure the sheet is public or paste CSV data.`,
+        });
+      }
+    }
+
+    if (!csvContent || csvContent.trim().length === 0) {
+      return res.status(400).json({ message: "No sheet data found or sheet is empty." });
+    }
+
+    const { headers, rawHeaders, rows } = parseCSVHelper(csvContent);
+    if (!rows.length) {
+      return res.status(400).json({ message: "No data rows found in the sheet." });
+    }
+
+    // Match column headers
+    const regHeader = headers.find((h) =>
+      h.includes("reg") || h.includes("register") || h.includes("usn") || h.includes("roll") || h.includes("studentreg")
+    ) || headers.find((h) => h.includes("id"));
+
+    const emailHeader = headers.find((h) => h.includes("email") || h.includes("mail"));
+    const nameHeader = headers.find((h) => h.includes("name") || h.includes("student"));
+    const statusHeader = headers.find((h) =>
+      h.includes("status") || h.includes("attend") || h.includes("present")
+    );
+
+    const registrations = await EventRegistration.find({ eventId }).populate("studentId", "name email regNo studentId");
+
+    const matchedStudents = [];
+    const unmatchedRows = [];
+
+    const presentIdsToUpdate = [];
+    const absentIdsToUpdate = [];
+
+    rows.forEach((row, idx) => {
+      const rowReg = (regHeader ? row[regHeader] : "").trim().toUpperCase();
+      const rowEmail = (emailHeader ? row[emailHeader] : "").trim().toLowerCase();
+      const rowName = (nameHeader ? row[nameHeader] : "").trim().toLowerCase();
+
+      const matchedReg = registrations.find((r) => {
+        const st = r.studentId;
+        if (!st) return false;
+        if (rowReg && (st.regNo?.toUpperCase() === rowReg || st.studentId?.toUpperCase() === rowReg)) return true;
+        if (rowEmail && st.email?.toLowerCase() === rowEmail) return true;
+        if (rowName && st.name?.toLowerCase() === rowName) return true;
+        return false;
+      });
+
+      let isPresent = true;
+      if (statusHeader && row[statusHeader]) {
+        const val = row[statusHeader].trim().toLowerCase();
+        if (["absent", "a", "no", "0", "false", "n"].includes(val)) {
+          isPresent = false;
+        } else if (["present", "p", "yes", "1", "true", "attended", "y"].includes(val)) {
+          isPresent = true;
+        }
+      }
+
+      if (matchedReg && matchedReg.studentId) {
+        matchedStudents.push({
+          slNo: idx + 1,
+          registrationId: matchedReg._id,
+          studentId: matchedReg.studentId._id,
+          name: matchedReg.studentId.name,
+          regNo: matchedReg.studentId.regNo || matchedReg.studentId.studentId || "—",
+          email: matchedReg.studentId.email,
+          status: isPresent ? "attended" : "absent",
+          previousStatus: matchedReg.status,
+        });
+
+        if (isPresent) {
+          presentIdsToUpdate.push(matchedReg.studentId._id);
+        } else {
+          absentIdsToUpdate.push(matchedReg.studentId._id);
+        }
+      } else {
+        unmatchedRows.push({
+          slNo: idx + 1,
+          rawValues: row._values,
+          regNo: rowReg || "—",
+          name: rowName || "—",
+          email: rowEmail || "—",
+        });
+      }
+    });
+
+    if (applyImmediately !== false) {
+      if (presentIdsToUpdate.length > 0) {
+        await EventRegistration.updateMany(
+          { eventId, studentId: { $in: presentIdsToUpdate } },
+          { $set: { status: "attended" } }
+        );
+        for (const sId of presentIdsToUpdate) {
+          await Attendance.findOneAndUpdate(
+            { eventId, studentId: sId },
+            { eventId, studentId: sId, checkInTime: new Date() },
+            { upsert: true }
+          );
+        }
+      }
+
+      if (absentIdsToUpdate.length > 0) {
+        await EventRegistration.updateMany(
+          { eventId, studentId: { $in: absentIdsToUpdate } },
+          { $set: { status: "absent" } }
+        );
+      }
+
+      const attendedCount = await EventRegistration.countDocuments({ eventId, status: "attended" });
+      const totalRegs = await EventRegistration.countDocuments({ eventId });
+      event.attendanceCount = attendedCount;
+      event.attendanceRate = totalRegs > 0 ? Math.round((attendedCount / totalRegs) * 100) : 0;
+      await event.save();
+    }
+
+    res.json({
+      message: `Processed ${rows.length} sheet rows. Matched ${matchedStudents.length} registered students.`,
+      totalInSheet: rows.length,
+      matchedCount: matchedStudents.length,
+      unmatchedCount: unmatchedRows.length,
+      matchedStudents,
+      unmatchedRows,
+      applied: applyImmediately !== false,
+    });
+  } catch (err) {
+    console.error("Import error:", err);
+    res.status(500).json({ message: err.message || "Failed to import attendance data" });
+  }
 });
 
 export default router;
