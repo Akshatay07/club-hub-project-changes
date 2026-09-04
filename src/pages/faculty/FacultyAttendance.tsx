@@ -371,7 +371,7 @@ const FacultyAttendance = () => {
       if (applyDirectly) {
         toast({
           title: "Attendance Applied",
-          description: `Updated attendance for ${res.data.matchedCount} registered students.`,
+          description: `Recorded attendance for ${res.data.matchedCount} students.`,
         });
         queryClient.invalidateQueries({ queryKey: ["faculty-registrations"] });
         queryClient.invalidateQueries({ queryKey: ["faculty-events"] });
@@ -380,7 +380,7 @@ const FacultyAttendance = () => {
       } else {
         toast({
           title: "Sheet Parsed",
-          description: `Found ${res.data.totalInSheet} rows. Matched ${res.data.matchedCount} registered students.`,
+          description: `Found ${res.data.totalInSheet} rows. ${res.data.matchedCount} student(s) ready to import.`,
         });
       }
     } catch (err: any) {
@@ -401,21 +401,22 @@ const FacultyAttendance = () => {
     try {
       setIsApplyingImport(true);
       const presentStudentIds = importResult.matchedStudents
-        .filter((s: any) => s.status === "attended")
+        .filter((s: any) => s.status === "attended" && s.studentId)
         .map((s: any) => s.studentId);
 
       const absentStudentIds = importResult.matchedStudents
-        .filter((s: any) => s.status === "absent")
+        .filter((s: any) => s.status === "absent" && s.studentId)
         .map((s: any) => s.studentId);
 
       await api.post(`/faculty/attendance/${selectedEvent}/import-google-sheet`, {
+        studentsToImport: importResult.matchedStudents,
         presentStudentIds,
         absentStudentIds,
       });
 
       toast({
         title: "Attendance Updated Successfully",
-        description: `Marked ${presentStudentIds.length} attended and ${absentStudentIds.length} absent.`,
+        description: `Successfully recorded attendance for ${importResult.matchedStudents.length} students.`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["faculty-registrations"] });
@@ -868,16 +869,32 @@ const FacultyAttendance = () => {
               </Table>
             </div>
           ) : (
-            <div className="py-12 text-center space-y-2">
-              <Users className="w-10 h-10 text-muted-foreground/40 mx-auto" />
-              <p className="text-sm font-medium text-foreground">
-                No student registrations found
-              </p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                {selectedEvent !== "all"
-                  ? "No students have registered for this event yet, or your search query did not match any student."
-                  : "No registrations currently exist for your club events."}
-              </p>
+            <div className="py-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                <FileSpreadsheet className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {selectedEvent !== "all" ? "No Attendance Records Yet" : "No Student Registrations Found"}
+                </p>
+                <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                  {selectedEvent !== "all"
+                    ? "Pre-registration is not required. You can directly upload your attendance sheet (Google Sheet or CSV) to import all attendees and mark attendance automatically."
+                    : "No registrations currently exist for your club events."}
+                </p>
+              </div>
+              {selectedEvent !== "all" && (
+                <div className="pt-2 flex justify-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setIsImportOpen(true)}
+                    className="gap-2 bg-gradient-primary shadow-sm"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Upload Attendance Sheet
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -987,11 +1004,10 @@ const FacultyAttendance = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-primary" />
-              Import Attendance from Google Sheets
+              Direct Attendance Upload
             </DialogTitle>
             <DialogDescription>
-              Automatically match students by <strong>Registration Number</strong> or <strong>Email</strong> and update their attendance for{" "}
-              <strong>{activeEvent?.name}</strong>.
+              Upload your attendance sheet or paste CSV data for <strong>{activeEvent?.name}</strong>. Attendance will be recorded directly (no prior student registration or student login required).
             </DialogDescription>
           </DialogHeader>
 
@@ -1081,13 +1097,13 @@ const FacultyAttendance = () => {
                 <Textarea
                   id="csvData"
                   rows={5}
-                  placeholder={`Register Number,Student Name,Status\nU24CS01A000001,Aditya Kumar,Attended\nU24EC01A000002,Sneha Patel,Attended`}
+                  placeholder={`Register Number,Student Name,Status\n21CS045,Aditya Kumar,Attended\n21EC012,Sneha Patel,Attended`}
                   value={csvText}
                   onChange={(e) => setCsvText(e.target.value)}
                   className="font-mono text-xs"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Includes header row (e.g. <code>Register Number, Name, Status</code>).
+                  Headers can include <code>Register Number / USN</code>, <code>Student Name</code>, <code>Email</code> (optional), and <code>Status</code> (optional - defaults to Attended).
                 </p>
               </div>
 
@@ -1128,15 +1144,29 @@ const FacultyAttendance = () => {
           {/* PREVIEW OF PARSED DATA */}
           {importResult && (
             <div className="mt-4 pt-4 border-t space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Match Preview ({importResult.matchedCount} of {importResult.totalInSheet} Rows Matched)
-                </h4>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Import Preview ({importResult.matchedCount} of {importResult.totalInSheet} Rows Parsed)
+                  </h4>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {(importResult.preRegisteredCount > 0) && (
+                      <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-700 border-slate-200">
+                        {importResult.preRegisteredCount} Pre-Registered
+                      </Badge>
+                    )}
+                    {(importResult.newAttendeesCount > 0) && (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                        {importResult.newAttendeesCount} Direct Attendees (Auto-Register)
+                      </Badge>
+                    )}
+                  </div>
+                </div>
                 <Badge
                   variant={importResult.matchedCount > 0 ? "default" : "secondary"}
                   className="text-xs bg-emerald-600"
                 >
-                  {importResult.matchedCount} Students Ready to Update
+                  {importResult.matchedCount} Students Ready to Save
                 </Badge>
               </div>
 
@@ -1147,15 +1177,27 @@ const FacultyAttendance = () => {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Student Name</TableHead>
                       <TableHead>Reg No</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>New Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {importResult.matchedStudents?.map((s: any, idx: number) => (
-                      <TableRow key={s.studentId} className="text-xs">
+                      <TableRow key={s.studentId || s.regNo || idx} className="text-xs">
                         <TableCell className="font-mono text-muted-foreground">{idx + 1}</TableCell>
                         <TableCell className="font-medium">{s.name}</TableCell>
                         <TableCell className="font-mono">{s.regNo}</TableCell>
+                        <TableCell>
+                          {s.isNewRegistration ? (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-200">
+                              Direct Attendee
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200">
+                              Pre-Registered
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             className={`text-[10px] ${
@@ -1176,7 +1218,7 @@ const FacultyAttendance = () => {
               {importResult.unmatchedCount > 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 shrink-0" />
-                  {importResult.unmatchedCount} row(s) in sheet did not match any registered student for this event.
+                  {importResult.unmatchedCount} row(s) could not be parsed (missing Name or Register Number).
                 </p>
               )}
 

@@ -84,13 +84,6 @@ userSchema.index(
 );
 
 
-// ✅ ADD THIS VALIDATION (SAFE, DOES NOT BREAK LOGIC)
-userSchema.pre("validate", function (next) {
-  if (this.role === "student" && !this.regNo) {
-    return next(new Error("Register number is required for students"));
-  }
-  next();
-});
 
 
 // PASSWORD HASH
@@ -116,14 +109,17 @@ userSchema.methods.toSafeObject = function () {
   delete obj.resetTokenExpiry;
   return obj;
 };
+// Student regNo validation: accepts institutional format (e.g. U24CS01A000001) or standard alphanumeric IDs (e.g. 21CS045, USN101)
 userSchema.pre("validate", function (next) {
   if (this.role === "student") {
     if (!this.regNo) {
-      return next(new Error("Register number required"));
+      return next(new Error("Register number is required for students"));
     }
 
-const pattern = /^[UP]\d{2}[A-Z]{2}\d{2}[A-Z]\d{6}$/;
-    if (!pattern.test(this.regNo)) {
+    const collegePattern = /^[UP]\d{2}[A-Z]{2}\d{2}[A-Z]\d{6}$/i;
+    const generalPattern = /^[A-Za-z0-9\-_/]{3,30}$/;
+
+    if (!collegePattern.test(this.regNo) && !generalPattern.test(this.regNo)) {
       return next(new Error("Invalid register number format"));
     }
   }

@@ -1,4 +1,6 @@
 import express from "express";
+import crypto from "crypto";
+import mongoose from "mongoose";
 import Club from "../models/Club.js";
 import Event from "../models/Event.js";
 import EventRegistration from "../models/EventRegistration.js";
@@ -587,7 +589,13 @@ function parseCSVHelper(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length === 0) return { headers: [], rawHeaders: [], rows: [] };
 
+  const firstLine = lines[0];
+  const isTabDelimited = firstLine.includes("\t") && (!firstLine.includes(",") || firstLine.split("\t").length > firstLine.split(",").length);
+
   function parseLine(line) {
+    if (isTabDelimited) {
+      return line.split("\t").map((v) => v.trim().replace(/^"(.*)"$/, "$1"));
+    }
     const values = [];
     let current = "";
     let inQuotes = false;
@@ -630,14 +638,118 @@ function parseCSVHelper(text) {
 router.post("/attendance/:eventId/import-google-sheet", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { sheetUrl, csvData, presentStudentIds, absentStudentIds, applyImmediately } = req.body;
+    const {
+      sheetUrl,
+      csvData,
+      studentsToImport,
+      presentStudentIds,
+      absentStudentIds,
+      applyImmediately,
+    } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event || !req.assignedClubIds.includes(String(event.clubId))) {
       return res.status(404).json({ message: "Event not found or unauthorized" });
     }
 
-    // Direct apply from client preview if provided
+    // Recalculate event attendance count & rate
+    const updateEventCounts = async () => {
+      const totalRegs = await EventRegistration.countDocuments({ eventId });
+      const attendedCount = await EventRegistration.countDocuments({ eventId, status: "attended" });
+      event.registeredCount = totalRegs;
+      event.attendanceCount = attendedCount;
+      event.attendanceRate = totalRegs > 0 ? Math.round((attendedCount / totalRegs) * 100) : 0;
+      await event.save();
+      if (typeof recalculateClubHealth === "function") {
+        recalculateClubHealth(event.clubId).catch(() => {});
+      }
+      return { totalRegs, attendedCount, attendanceRate: event.attendanceRate };
+    };
+
+    // Helper: auto-create or find student User and EventRegistration
+    const recordStudentAttendance = async (studentInfo, status = "attended") => {
+      const regNo = (studentInfo.regNo || "").trim().toUpperCase();
+      const email = (studentInfo.email || "").trim().toLowerCase();
+      const name = (studentInfo.name || "").trim() || regNo || "Student";
+      const department = (studentInfo.department || "").trim();
+
+      // Find or create User
+      let studentUser = null;
+      if (studentInfo.studentId && mongoose.Types.ObjectId.isValid(studentInfo.studentId)) {
+        studentUser = await User.findById(studentInfo.studentId);
+      }
+      if (!studentUser) {
+        const query = [];
+        if (regNo && regNo !== "—") query.push({ regNo }, { studentId: regNo });
+        if (email && email !== "—") query.push({ email });
+        if (query.length > 0) {
+          studentUser = await User.findOne({ $or: query });
+        }
+      }
+
+      if (!studentUser) {
+        const fallbackId = regNo && regNo !== "—" ? regNo : `student_${crypto.randomBytes(3).toString("hex")}`;
+        const studentEmail = (email && email !== "—") ? email : `${fallbackId.toLowerCase()}@student.college.edu`;
+        const dummyPassword = crypto.randomBytes(12).toString("hex");
+
+        studentUser = await User.create({
+          name,
+          email: studentEmail,
+          regNo: (regNo && regNo !== "—") ? regNo : undefined,
+          password: dummyPassword,
+          role: "student",
+          department,
+          isActive: true,
+          isApproved: true,
+        });
+      } else if (regNo && regNo !== "—" && !studentUser.regNo) {
+        studentUser.regNo = regNo;
+        await studentUser.save();
+      }
+
+      // Find or create EventRegistration
+      let reg = await EventRegistration.findOne({ eventId, studentId: studentUser._id });
+      if (!reg) {
+        reg = await EventRegistration.create({
+          eventId,
+          studentId: studentUser._id,
+          status,
+          confirmationCode: `AUTO-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+        });
+      } else {
+        reg.status = status;
+        await reg.save();
+      }
+
+      // Record in Attendance collection
+      if (status === "attended") {
+        await Attendance.findOneAndUpdate(
+          { eventId, studentId: studentUser._id },
+          { eventId, studentId: studentUser._id, registrationId: reg._id, checkInTime: new Date() },
+          { upsert: true }
+        );
+      }
+
+      return { student: studentUser, registration: reg };
+    };
+
+    // Case 1: Applying structured list of students (e.g. from preview confirm)
+    if (Array.isArray(studentsToImport) && studentsToImport.length > 0) {
+      let savedCount = 0;
+      for (const item of studentsToImport) {
+        if (!item) continue;
+        const stStatus = item.status === "absent" ? "absent" : "attended";
+        await recordStudentAttendance(item, stStatus);
+        savedCount++;
+      }
+      const counts = await updateEventCounts();
+      return res.json({
+        message: `Successfully saved attendance for ${savedCount} students.`,
+        ...counts,
+      });
+    }
+
+    // Case 2: Direct apply by ID arrays
     if (Array.isArray(presentStudentIds) || Array.isArray(absentStudentIds)) {
       if (Array.isArray(presentStudentIds) && presentStudentIds.length > 0) {
         await EventRegistration.updateMany(
@@ -660,19 +772,14 @@ router.post("/attendance/:eventId/import-google-sheet", async (req, res) => {
         );
       }
 
-      const attendedCount = await EventRegistration.countDocuments({ eventId, status: "attended" });
-      const totalRegs = await EventRegistration.countDocuments({ eventId });
-      event.attendanceCount = attendedCount;
-      event.attendanceRate = totalRegs > 0 ? Math.round((attendedCount / totalRegs) * 100) : 0;
-      await event.save();
-
+      const counts = await updateEventCounts();
       return res.json({
         message: "Attendance applied successfully",
-        attendedCount,
-        totalRegs,
+        ...counts,
       });
     }
 
+    // Case 3: Parse Google Sheet URL or CSV Data
     let csvContent = csvData || "";
 
     if (sheetUrl) {
@@ -715,48 +822,72 @@ router.post("/attendance/:eventId/import-google-sheet", async (req, res) => {
       return res.status(400).json({ message: "No data rows found in the sheet." });
     }
 
-    // Match column headers
+    // Column header detection
     const regHeader = headers.find((h) =>
-      h.includes("reg") || h.includes("register") || h.includes("usn") || h.includes("roll") || h.includes("studentreg")
+      h.includes("reg") || h.includes("register") || h.includes("usn") || h.includes("roll") || h.includes("studentreg") || h.includes("enroll")
     ) || headers.find((h) => h.includes("id"));
 
     const emailHeader = headers.find((h) => h.includes("email") || h.includes("mail"));
-    const nameHeader = headers.find((h) => h.includes("name") || h.includes("student"));
+    const nameHeader = headers.find((h) => h.includes("name") || h.includes("student") || h.includes("participant"));
     const statusHeader = headers.find((h) =>
       h.includes("status") || h.includes("attend") || h.includes("present")
     );
+    const deptHeader = headers.find((h) => h.includes("dept") || h.includes("branch") || h.includes("department"));
 
-    const registrations = await EventRegistration.find({ eventId }).populate("studentId", "name email regNo studentId");
+    const existingRegistrations = await EventRegistration.find({ eventId }).populate("studentId", "name email regNo studentId department");
 
     const matchedStudents = [];
     const unmatchedRows = [];
 
-    const presentIdsToUpdate = [];
-    const absentIdsToUpdate = [];
+    // Pre-cache users to avoid N queries
+    const rowRegs = rows.map((r) => (regHeader ? r[regHeader] : "").trim().toUpperCase()).filter(Boolean);
+    const rowEmails = rows.map((r) => (emailHeader ? r[emailHeader] : "").trim().toLowerCase()).filter(Boolean);
 
-    rows.forEach((row, idx) => {
+    const existingUsers = await User.find({
+      $or: [
+        { regNo: { $in: rowRegs } },
+        { studentId: { $in: rowRegs } },
+        { email: { $in: rowEmails } },
+      ],
+    });
+
+    for (let idx = 0; idx < rows.length; idx++) {
+      const row = rows[idx];
       const rowReg = (regHeader ? row[regHeader] : "").trim().toUpperCase();
       const rowEmail = (emailHeader ? row[emailHeader] : "").trim().toLowerCase();
-      const rowName = (nameHeader ? row[nameHeader] : "").trim().toLowerCase();
+      const rowName = (nameHeader ? row[nameHeader] : "").trim();
+      const rowDept = (deptHeader ? row[deptHeader] : "").trim();
 
-      const matchedReg = registrations.find((r) => {
-        const st = r.studentId;
-        if (!st) return false;
-        if (rowReg && (st.regNo?.toUpperCase() === rowReg || st.studentId?.toUpperCase() === rowReg)) return true;
-        if (rowEmail && st.email?.toLowerCase() === rowEmail) return true;
-        if (rowName && st.name?.toLowerCase() === rowName) return true;
-        return false;
-      });
+      // Skip row if it has no usable student info
+      if (!rowReg && !rowEmail && !rowName) {
+        unmatchedRows.push({
+          slNo: idx + 1,
+          rawValues: row._values,
+          reason: "Row has no Name, Register Number, or Email",
+        });
+        continue;
+      }
 
+      // Determine attendance status (default: attended)
       let isPresent = true;
       if (statusHeader && row[statusHeader]) {
-        const val = row[statusHeader].trim().toLowerCase();
-        if (["absent", "a", "no", "0", "false", "n"].includes(val)) {
+        const val = String(row[statusHeader]).trim().toLowerCase();
+        if (["absent", "a", "no", "0", "false", "n", "ab"].includes(val)) {
           isPresent = false;
         } else if (["present", "p", "yes", "1", "true", "attended", "y"].includes(val)) {
           isPresent = true;
         }
       }
+
+      // Check if student is already in existing registrations for this event
+      const matchedReg = existingRegistrations.find((r) => {
+        const st = r.studentId;
+        if (!st) return false;
+        if (rowReg && (st.regNo?.toUpperCase() === rowReg || st.studentId?.toUpperCase() === rowReg)) return true;
+        if (rowEmail && st.email?.toLowerCase() === rowEmail) return true;
+        if (rowName && st.name?.toLowerCase() === rowName.toLowerCase()) return true;
+        return false;
+      });
 
       if (matchedReg && matchedReg.studentId) {
         matchedStudents.push({
@@ -764,65 +895,71 @@ router.post("/attendance/:eventId/import-google-sheet", async (req, res) => {
           registrationId: matchedReg._id,
           studentId: matchedReg.studentId._id,
           name: matchedReg.studentId.name,
-          regNo: matchedReg.studentId.regNo || matchedReg.studentId.studentId || "—",
-          email: matchedReg.studentId.email,
+          regNo: matchedReg.studentId.regNo || matchedReg.studentId.studentId || rowReg || "—",
+          email: matchedReg.studentId.email || rowEmail || "—",
+          department: matchedReg.studentId.department || rowDept,
           status: isPresent ? "attended" : "absent",
           previousStatus: matchedReg.status,
+          isNewRegistration: false,
         });
-
-        if (isPresent) {
-          presentIdsToUpdate.push(matchedReg.studentId._id);
-        } else {
-          absentIdsToUpdate.push(matchedReg.studentId._id);
-        }
       } else {
-        unmatchedRows.push({
+        // Direct attendee (not pre-registered)
+        const foundUser = existingUsers.find((u) => {
+          if (rowReg && (u.regNo?.toUpperCase() === rowReg || u.studentId?.toUpperCase() === rowReg)) return true;
+          if (rowEmail && u.email?.toLowerCase() === rowEmail) return true;
+          return false;
+        });
+
+        matchedStudents.push({
           slNo: idx + 1,
-          rawValues: row._values,
-          regNo: rowReg || "—",
-          name: rowName || "—",
-          email: rowEmail || "—",
+          studentId: foundUser?._id || null,
+          name: foundUser?.name || rowName || rowReg || "Student",
+          regNo: foundUser?.regNo || rowReg || "—",
+          email: foundUser?.email || rowEmail || `${(rowReg || 'student_' + (idx + 1)).toLowerCase()}@student.college.edu`,
+          department: foundUser?.department || rowDept,
+          status: isPresent ? "attended" : "absent",
+          previousStatus: "not_registered",
+          isNewRegistration: true,
         });
       }
-    });
-
-    if (applyImmediately !== false) {
-      if (presentIdsToUpdate.length > 0) {
-        await EventRegistration.updateMany(
-          { eventId, studentId: { $in: presentIdsToUpdate } },
-          { $set: { status: "attended" } }
-        );
-        for (const sId of presentIdsToUpdate) {
-          await Attendance.findOneAndUpdate(
-            { eventId, studentId: sId },
-            { eventId, studentId: sId, checkInTime: new Date() },
-            { upsert: true }
-          );
-        }
-      }
-
-      if (absentIdsToUpdate.length > 0) {
-        await EventRegistration.updateMany(
-          { eventId, studentId: { $in: absentIdsToUpdate } },
-          { $set: { status: "absent" } }
-        );
-      }
-
-      const attendedCount = await EventRegistration.countDocuments({ eventId, status: "attended" });
-      const totalRegs = await EventRegistration.countDocuments({ eventId });
-      event.attendanceCount = attendedCount;
-      event.attendanceRate = totalRegs > 0 ? Math.round((attendedCount / totalRegs) * 100) : 0;
-      await event.save();
     }
 
+    // Direct apply immediately (default when applyImmediately === true or not explicitly false)
+    if (applyImmediately !== false) {
+      let savedCount = 0;
+      for (const item of matchedStudents) {
+        await recordStudentAttendance(item, item.status);
+        savedCount++;
+      }
+      const counts = await updateEventCounts();
+      return res.json({
+        message: `Processed ${rows.length} rows. Recorded attendance for ${savedCount} students.`,
+        totalInSheet: rows.length,
+        matchedCount: matchedStudents.length,
+        preRegisteredCount: matchedStudents.filter((s) => !s.isNewRegistration).length,
+        newAttendeesCount: matchedStudents.filter((s) => s.isNewRegistration).length,
+        unmatchedCount: unmatchedRows.length,
+        matchedStudents,
+        unmatchedRows,
+        applied: true,
+        ...counts,
+      });
+    }
+
+    // Preview mode
+    const preRegisteredCount = matchedStudents.filter((s) => !s.isNewRegistration).length;
+    const newAttendeesCount = matchedStudents.filter((s) => s.isNewRegistration).length;
+
     res.json({
-      message: `Processed ${rows.length} sheet rows. Matched ${matchedStudents.length} registered students.`,
+      message: `Parsed ${rows.length} rows. Found ${preRegisteredCount} registered students and ${newAttendeesCount} new attendees ready to add.`,
       totalInSheet: rows.length,
       matchedCount: matchedStudents.length,
+      preRegisteredCount,
+      newAttendeesCount,
       unmatchedCount: unmatchedRows.length,
       matchedStudents,
       unmatchedRows,
-      applied: applyImmediately !== false,
+      applied: false,
     });
   } catch (err) {
     console.error("Import error:", err);
