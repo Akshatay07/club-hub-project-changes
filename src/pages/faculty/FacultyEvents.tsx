@@ -5,7 +5,8 @@ import { socket } from "@/lib/socket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, CalendarDays, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarDays, Clock, Download, FileText } from "lucide-react";
+import api from "@/api/api";
 import { useFacultyEvents } from "@/hooks/use-dashboard-api";
 import {
   useCreateEvent,
@@ -117,6 +118,33 @@ socket.on("event:updated", (updatedEvent) => {
     });
   };
 
+  const handleDownloadSheet = async (eventId: string, eventName: string) => {
+    try {
+      const res = await api.get(`/faculty/attendance/${eventId}/pdf`, {
+        responseType: "blob",
+      });
+      const file = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attendance-${eventName || "event"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({
+        title: "Attendance Sheet Downloaded",
+        description: `Blank printable attendance sheet ready for ${eventName}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Download Failed",
+        description: err?.response?.data?.message || "Could not generate sheet",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -189,19 +217,30 @@ socket.on("event:updated", (updatedEvent) => {
 
                   <div className="flex gap-2 pt-1">
                     <Button
-  size="sm"
-  variant="outline"
-  className="flex-1 gap-1"
-  disabled={event.status === "approved"}
-  onClick={() => {
-    if (event.status === "approved") return;
-    setEditingEvent(event);
-    setFormOpen(true);
-  }}
->
-  <Pencil className="h-3 w-3" />
-  Edit
-</Button>
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-1"
+                      disabled={event.status === "approved"}
+                      onClick={() => {
+                        if (event.status === "approved") return;
+                        setEditingEvent(event);
+                        setFormOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-primary hover:bg-primary/5 border-primary/30"
+                      onClick={() => handleDownloadSheet(event._id, event.name)}
+                      title="Download printable attendance sheet"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Sheet
+                    </Button>
 
                     <Button
                       size="sm"

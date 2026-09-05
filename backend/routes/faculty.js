@@ -101,7 +101,7 @@ router.get("/events/:eventId/registrations", async (req, res) => {
     const { eventId } = req.params;
 
     const data = await EventRegistration.find({ eventId })
-      .populate("studentId", "name email");
+      .populate("studentId", "name email regNo studentId department");
 
     res.json(data);
   } catch (err) {
@@ -386,94 +386,159 @@ router.post("/feedback/respond", async (req, res) => {
 router.get("/attendance/:eventId/pdf", async (req, res) => {
   try {
     const { eventId } = req.params;
+    const requestedRows = req.query.rows ? parseInt(req.query.rows, 10) : null;
 
     const event = await Event.findById(eventId).populate("clubId", "name");
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
 
-    const registrations = await EventRegistration.find({ eventId })
-      .populate("studentId", "name email studentId");
+    const totalRows = requestedRows && !isNaN(requestedRows) && requestedRows > 0
+      ? requestedRows
+      : (event.maxCapacity && event.maxCapacity > 0 ? Math.min(event.maxCapacity, 100) : 30);
 
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    const doc = new PDFDocument({ margin: 36, size: "A4" });
 
     res.setHeader("Content-Type", "application/pdf");
+    const sanitizedName = (event.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_");
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=attendance-sheet.pdf"
+      `attachment; filename=attendance-${sanitizedName}.pdf`
     );
 
     doc.pipe(res);
 
-const logoPath = path.join(process.cwd(), "backend", "logo.png");
-
-if (fs.existsSync(logoPath)) {
-  doc.image(logoPath, 40, 30, { width: 50 });
-}
+    const logoPath = path.join(process.cwd(), "backend", "logo.png");
 
     // ================= HEADER =================
-    doc
-      .fontSize(16)
-      .text("DSCASC", { align: "center" });
+    let startY = 35;
+    if (fs.existsSync(logoPath)) {
+      try {
+        doc.image(logoPath, 40, startY, { width: 42 });
+      } catch (e) {
+        console.log("Logo load error:", e.message);
+      }
+    }
 
-    doc.moveDown(0.5);
-
+    // Institution Title
     doc
       .fontSize(12)
-      .text(`Club: ${event?.clubId?.name || "-"}`, { align: "center" });
+      .font("Helvetica-Bold")
+      .fillColor("#0f172a")
+      .text("DAYANANDA SAGAR COLLEGE OF ARTS, SCIENCE AND COMMERCE", 40, startY + 2, {
+        align: "center",
+        width: 515,
+      });
 
-    doc.text(`Event: ${event?.name || "-"}`, { align: "center" });
-    doc.text(`Date: ${event?.date || "-"}`, { align: "center" });
+    doc
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .fillColor("#2563eb")
+      .text("EVENT ATTENDANCE RECORD SHEET", 40, startY + 18, {
+        align: "center",
+        width: 515,
+      });
 
-    doc.moveDown(1.5);
+    // Event Info Box
+    const infoBoxY = startY + 38;
+    const infoBoxHeight = 44;
+    doc
+      .rect(40, infoBoxY, 515, infoBoxHeight)
+      .fillAndStroke("#f8fafc", "#cbd5e1");
+
+    // Row 1 inside Info Box
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Event Name:", 50, infoBoxY + 8);
+    doc.font("Helvetica").fillColor("#0f172a").text(event.name || "-", 115, infoBoxY + 8, { width: 200 });
+
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Date:", 330, infoBoxY + 8);
+    doc.font("Helvetica").fillColor("#0f172a").text(event.date || "-", 365, infoBoxY + 8, { width: 180 });
+
+    // Row 2 inside Info Box
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Club:", 50, infoBoxY + 24);
+    doc.font("Helvetica").fillColor("#0f172a").text(event?.clubId?.name || event?.clubName || "-", 115, infoBoxY + 24, { width: 200 });
+
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Venue/Time:", 330, infoBoxY + 24);
+    doc.font("Helvetica").fillColor("#0f172a").text(`${event.venue || "Campus"} | ${event.time || "-"}`, 400, infoBoxY + 24, { width: 150 });
 
     // ================= TABLE =================
-    const startX = 40;
-    let y = 140;
-
     const col = {
-  sl: startX,
-  reg: startX + 40,
-  name: startX + 140,
-  sign: startX + 380,
-};
+      sl: { x: 40, w: 45 },
+      name: { x: 85, w: 190 },
+      reg: { x: 275, w: 130 },
+      sign: { x: 405, w: 150 },
+    };
 
-    // Header
-    doc.fontSize(11).font("Helvetica-Bold");
-    doc.text("Sl No", col.sl, y);
-    doc.text("Reg No", col.reg, y);
-    doc.text("Student Name", col.name, y);
-doc.text("Signature", col.sign, y);
+    const drawTableHeader = (headerY) => {
+      doc.rect(40, headerY, 515, 22).fillAndStroke("#f1f5f9", "#94a3b8");
+      doc.moveTo(col.name.x, headerY).lineTo(col.name.x, headerY + 22).stroke("#94a3b8");
+      doc.moveTo(col.reg.x, headerY).lineTo(col.reg.x, headerY + 22).stroke("#94a3b8");
+      doc.moveTo(col.sign.x, headerY).lineTo(col.sign.x, headerY + 22).stroke("#94a3b8");
 
-    y += 15;
+      doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#0f172a");
+      doc.text("SL NO.", col.sl.x, headerY + 6, { width: col.sl.w, align: "center" });
+      doc.text("STUDENT NAME", col.name.x + 8, headerY + 6, { width: col.name.w - 16, align: "left" });
+      doc.text("REGISTRATION NUMBER", col.reg.x + 6, headerY + 6, { width: col.reg.w - 12, align: "center" });
+      doc.text("SIGNATURE", col.sign.x, headerY + 6, { width: col.sign.w, align: "center" });
+    };
 
-    doc.moveTo(startX, y).lineTo(550, y).stroke();
+    let currentY = infoBoxY + infoBoxHeight + 10;
+    const rowHeight = 22;
+    const pageBottomLimit = 760;
 
-    y += 10;
+    drawTableHeader(currentY);
+    currentY += 22;
 
-    doc.font("Helvetica");
-
-    registrations.forEach((r, index) => {
-      const student = r.studentId;
-
-      const regNo = student?.regNo || "-";
-
-      doc.text(index + 1, col.sl, y);
-      doc.text(regNo, col.reg, y);
-      doc.text(student?.name || "-", col.name, y);
-
-      // signature line
-      doc.moveTo(col.sign, y + 12).lineTo(550, y + 12).stroke();
-
-      y += 25;
-
-      if (y > 750) {
+    for (let i = 0; i < totalRows; i++) {
+      if (currentY + rowHeight > pageBottomLimit) {
         doc.addPage();
-        y = 60;
+        doc.fontSize(8).font("Helvetica").fillColor("#64748b").text(
+          `Event: ${event.name} | Date: ${event.date || "-"} (Attendance Sheet - Page ${doc.bufferedPageRange().count})`,
+          40,
+          30,
+          { width: 515, align: "right" }
+        );
+        currentY = 45;
+        drawTableHeader(currentY);
+        currentY += 22;
       }
-    });
 
-    // ================= FOOTER =================
-    doc.moveDown(2);
+      if (i % 2 === 1) {
+        doc.rect(40, currentY, 515, rowHeight).fill("#f8fafc");
+      }
 
-    doc.text("Faculty Signature: ____________________", 40, y + 20);
+      doc.rect(40, currentY, 515, rowHeight).stroke("#cbd5e1");
+      doc.moveTo(col.name.x, currentY).lineTo(col.name.x, currentY + rowHeight).stroke("#cbd5e1");
+      doc.moveTo(col.reg.x, currentY).lineTo(col.reg.x, currentY + rowHeight).stroke("#cbd5e1");
+      doc.moveTo(col.sign.x, currentY).lineTo(col.sign.x, currentY + rowHeight).stroke("#cbd5e1");
+
+      doc.fontSize(8.5).font("Helvetica").fillColor("#475569").text(
+        String(i + 1),
+        col.sl.x,
+        currentY + 6,
+        { width: col.sl.w, align: "center" }
+      );
+
+      currentY += rowHeight;
+    }
+
+    if (currentY + 50 > 800) {
+      doc.addPage();
+      currentY = 50;
+    } else {
+      currentY += 15;
+    }
+
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#1e293b");
+    doc.text("Faculty Coordinator Signature: ___________________", 40, currentY);
+    doc.text("Club Lead Signature: ___________________", 330, currentY);
+
+    doc.fontSize(8).font("Helvetica").fillColor("#64748b");
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 40, currentY + 20);
+    doc.text("Verified Official Copy", 440, currentY + 20, { align: "right" });
 
     doc.end();
   } catch (err) {
