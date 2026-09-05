@@ -85,7 +85,7 @@ const FacultyAttendance = () => {
   const bulkMark = useBulkMarkAttendance();
   const { toast } = useToast();
 
-  const [selectedEvent, setSelectedEvent] = useState<string>("all");
+  const [selectedEvent, setSelectedEvent] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -105,12 +105,12 @@ const FacultyAttendance = () => {
   const [importResult, setImportResult] = useState<any>(null);
   const [isApplyingImport, setIsApplyingImport] = useState(false);
 
-  // Auto-select first event if events are loaded and currently "all"
+  // Auto-select first event when events are loaded
   useEffect(() => {
-    if (events.length > 0 && selectedEvent === "all") {
+    if (events.length > 0 && (!selectedEvent || !events.some((e: any) => e._id === selectedEvent))) {
       setSelectedEvent(events[0]._id);
     }
-  }, [events]);
+  }, [events, selectedEvent]);
 
   // Current active event details
   const activeEvent = events.find((e: any) => e._id === selectedEvent);
@@ -123,17 +123,17 @@ const FacultyAttendance = () => {
   } = useQuery<SignedSheet[]>({
     queryKey: ["signed-sheets", selectedEvent],
     queryFn: async () => {
-      if (!selectedEvent || selectedEvent === "all") return [];
+      if (!selectedEvent) return [];
       const res = await api.get(`/faculty/attendance/${selectedEvent}/signed-sheets`);
       return res.data || [];
     },
-    enabled: !!selectedEvent && selectedEvent !== "all",
+    enabled: !!selectedEvent,
   });
 
   // Filter registrations by selected event
   const eventRegistrations =
     registrations?.filter(
-      (r: any) => selectedEvent === "all" || r?.event?._id === selectedEvent
+      (r: any) => r?.event?._id === selectedEvent
     ) ?? [];
 
   // Filter by search query (Name or Reg No)
@@ -142,8 +142,7 @@ const FacultyAttendance = () => {
     const query = searchQuery.toLowerCase();
     const nameMatch = r?.student?.name?.toLowerCase().includes(query);
     const regMatch = r?.student?.regNo?.toLowerCase().includes(query);
-    const emailMatch = r?.student?.email?.toLowerCase().includes(query);
-    return nameMatch || regMatch || emailMatch;
+    return nameMatch || regMatch;
   });
 
   const attendedCount = eventRegistrations.filter((r: any) => r?.status === "attended").length;
@@ -222,7 +221,7 @@ const FacultyAttendance = () => {
   // Download blank physical attendance sheet PDF
   const handleDownloadBlankPDF = async () => {
     try {
-      if (!selectedEvent || selectedEvent === "all") {
+      if (!selectedEvent) {
         toast({ title: "Please select an event first", variant: "destructive" });
         return;
       }
@@ -254,13 +253,11 @@ const FacultyAttendance = () => {
       toast({ title: "No attendance data to export", variant: "destructive" });
       return;
     }
-    const headers = ["Sl No", "Student Name", "Registration Number", "Email", "Event", "Status"];
+    const headers = ["Sl No", "Student Name", "Registration Number", "Status"];
     const rows = filtered.map((r: any, idx: number) => [
       idx + 1,
       r?.student?.name ?? "—",
       r?.student?.regNo ?? "—",
-      r?.student?.email ?? "—",
-      r?.event?.name ?? "—",
       r?.status ?? "registered",
     ]);
 
@@ -272,7 +269,7 @@ const FacultyAttendance = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `attendance-${activeEvent?.name || "all"}.csv`;
+    a.download = `attendance-${activeEvent?.name || "event"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: "CSV Exported successfully" });
@@ -281,7 +278,7 @@ const FacultyAttendance = () => {
   // Handle PDF file upload for signed sheet
   const handleUploadSignedSheet = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEvent || selectedEvent === "all") {
+    if (!selectedEvent) {
       toast({ title: "Select a specific event first", variant: "destructive" });
       return;
     }
@@ -338,7 +335,7 @@ const FacultyAttendance = () => {
 
   // Process / Fetch Google Sheet or CSV data
   const handleFetchImport = async (applyDirectly: boolean = false) => {
-    if (!selectedEvent || selectedEvent === "all") {
+    if (!selectedEvent) {
       toast({ title: "Please select an event first", variant: "destructive" });
       return;
     }
@@ -467,12 +464,13 @@ const FacultyAttendance = () => {
           {/* BUTTON 1: Upload Signed Sheets (scanned copies as PDF) */}
           <Button
             onClick={() => {
-              if (selectedEvent === "all") {
+              if (!selectedEvent) {
                 toast({ title: "Please select a specific event first", variant: "destructive" });
                 return;
               }
               setIsUploadOpen(true);
             }}
+            disabled={!selectedEvent}
             className="gap-2 bg-gradient-primary hover:opacity-90 shadow-sm"
           >
             <FileUp className="h-4 w-4" />
@@ -483,13 +481,14 @@ const FacultyAttendance = () => {
           <Button
             variant="outline"
             onClick={() => {
-              if (selectedEvent === "all") {
+              if (!selectedEvent) {
                 toast({ title: "Please select a specific event first", variant: "destructive" });
                 return;
               }
               setImportResult(null);
               setIsImportOpen(true);
             }}
+            disabled={!selectedEvent}
             className="gap-2 border-primary/30 hover:border-primary hover:bg-primary/5 text-foreground"
           >
             <FileSpreadsheet className="h-4 w-4 text-primary" />
@@ -500,7 +499,7 @@ const FacultyAttendance = () => {
           <Button
             variant="outline"
             onClick={handleDownloadBlankPDF}
-            disabled={selectedEvent === "all"}
+            disabled={!selectedEvent}
             className="gap-2"
           >
             <Download className="h-4 w-4" />
@@ -512,6 +511,7 @@ const FacultyAttendance = () => {
             variant="ghost"
             size="sm"
             onClick={handleExportCSV}
+            disabled={!selectedEvent || !filtered.length}
             className="text-muted-foreground hover:text-foreground"
           >
             Export CSV
@@ -539,7 +539,6 @@ const FacultyAttendance = () => {
                     <SelectValue placeholder="Choose an event..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Events Overview</SelectItem>
                     {events.map((e: any) => (
                       <SelectItem key={e._id} value={e._id}>
                         {e.name}
@@ -605,7 +604,7 @@ const FacultyAttendance = () => {
       </Card>
 
       {/* Attached Physical Signed Sheet(s) Section */}
-      {selectedEvent !== "all" && signedSheets.length > 0 && (
+      {selectedEvent && signedSheets.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="border-primary/30 bg-primary/5 shadow-sm">
             <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -666,7 +665,7 @@ const FacultyAttendance = () => {
                 Student Attendance Ledger
               </CardTitle>
               <CardDescription>
-                {activeEvent ? `Attendance list for ${activeEvent.name}` : "Showing all club registrations"}
+                {activeEvent ? `Attendance list for ${activeEvent.name}` : "Select an event to view attendance"}
               </CardDescription>
             </div>
 
@@ -729,23 +728,17 @@ const FacultyAttendance = () => {
                         disabled={isBusy || unattendedFiltered.length === 0}
                       />
                     </TableHead>
-                    {/* AS REQUESTED: Serial Number */}
+                    {/* Serial Number */}
                     <TableHead className="w-16 text-center font-bold text-xs uppercase tracking-wider">
                       Sl No.
                     </TableHead>
-                    {/* AS REQUESTED: Student Name */}
+                    {/* Student Name */}
                     <TableHead className="font-bold text-xs uppercase tracking-wider">
                       Student Name
                     </TableHead>
-                    {/* AS REQUESTED: Registration Number */}
+                    {/* Registration Number */}
                     <TableHead className="font-bold text-xs uppercase tracking-wider">
                       Registration Number
-                    </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider">
-                      Email Address
-                    </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider">
-                      Event
                     </TableHead>
                     <TableHead className="font-bold text-xs uppercase tracking-wider text-center">
                       Status
@@ -810,16 +803,6 @@ const FacultyAttendance = () => {
                           </Badge>
                         </TableCell>
 
-                        {/* EMAIL */}
-                        <TableCell className="text-xs text-muted-foreground">
-                          {reg?.student?.email ?? "—"}
-                        </TableCell>
-
-                        {/* EVENT */}
-                        <TableCell className="text-xs text-muted-foreground font-medium">
-                          {reg?.event?.name ?? "—"}
-                        </TableCell>
-
                         {/* ATTENDANCE STATUS */}
                         <TableCell className="text-center">
                           {isAttended ? (
@@ -875,15 +858,15 @@ const FacultyAttendance = () => {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
-                  {selectedEvent !== "all" ? "No Attendance Records Yet" : "No Student Registrations Found"}
+                  No Attendance Records Yet
                 </p>
                 <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                  {selectedEvent !== "all"
+                  {selectedEvent
                     ? "Pre-registration is not required. You can directly upload your attendance sheet (Google Sheet or CSV) to import all attendees and mark attendance automatically."
-                    : "No registrations currently exist for your club events."}
+                    : "Please select an event to view and manage attendance."}
                 </p>
               </div>
-              {selectedEvent !== "all" && (
+              {selectedEvent && (
                 <div className="pt-2 flex justify-center gap-2">
                   <Button
                     size="sm"
