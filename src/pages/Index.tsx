@@ -6,12 +6,8 @@ import QuickStats from "@/components/dashboard/QuickStats";
 import EventsChart from "@/components/dashboard/EventsChart";
 import EventsTable from "@/components/dashboard/EventsTable";
 import ComplaintsFeed from "@/components/dashboard/ComplaintsFeed";
-import MediaBudget from "@/components/dashboard/MediaBudget";
 import DayFlowCalendar from "@/components/dashboard/DayFlowCalendar";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 
-import FacultyBudget from "@/components/dashboard/FacultyBudget";
 const Index = () => {
   return (
     <div className="p-6 space-y-6">
@@ -33,17 +29,9 @@ const Index = () => {
 
       <MetricsCards />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ClubStatus />
         <QuickStats />
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <MediaBudget />
-          <FacultyBudget />
-        </motion.div>
       </div>
 
       <EventsChart />

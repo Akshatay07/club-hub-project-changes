@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarDays, Users, ClipboardList, MessageSquare } from "lucide-react";
 import { useFacultyClub, useFacultyStats } from "@/hooks/use-dashboard-api";
 import { Skeleton } from "@/components/ui/skeleton";
-import FacultyBudget from "@/components/dashboard/FacultyBudget";
 import EventsTable from "@/components/dashboard/EventsTable";
 
 const FacultyDashboard = () => {
@@ -109,19 +108,6 @@ const FacultyDashboard = () => {
                 </span>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* BUDGET */}
-      {club && (
-        <Card className="shadow-card border border-border bg-card">
-          <CardContent className="p-6">
-            <FacultyBudget
-              clubName={club.name}
-              allocated={club.budgetAllocated ?? 0}
-              used={club.budgetUsed ?? 0}
-            />
           </CardContent>
         </Card>
       )}

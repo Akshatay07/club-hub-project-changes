@@ -97,7 +97,13 @@ export default function AdminReports() {
       20,
       y
     );
-    y += 15;
+    y += 10;
+
+    if (report.budgetSpent) {
+      doc.text(`Budget Spent: Rs.${report.budgetSpent}`, 20, y);
+      y += 10;
+    }
+    y += 5;
 
     doc.text("Topics Covered:", 20, y);
     y += 8;
@@ -270,6 +276,13 @@ export default function AdminReports() {
                 <strong>Student Coordinator:</strong>{" "}
                 {selectedReport.studentCoordinator}
               </p>
+
+              {(typeof selectedReport.budgetSpent === "number" && selectedReport.budgetSpent > 0) && (
+                <p>
+                  <strong>Budget Spent:</strong>{" "}
+                  ₹{selectedReport.budgetSpent.toLocaleString("en-IN")}
+                </p>
+              )}
 
               <div>
                 <h3 className="font-semibold mb-2">

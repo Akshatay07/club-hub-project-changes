@@ -217,26 +217,52 @@ const Reports = () => {
 
       {/* COORDINATORS */}
       <div className="grid grid-cols-2 gap-4">
-<input
-  className="w-full border rounded p-2"
-  value={report.facultyCoordinator || ""}
-  onChange={(e) =>
-    setReport({
-      ...report,
-      facultyCoordinator: e.target.value,
-    })
-  }
-/>
-<input
-  className="w-full border rounded p-2"
-  value={report.studentCoordinator || ""}
-  onChange={(e) =>
-    setReport({
-      ...report,
-      studentCoordinator: e.target.value,
-    })
-  }
-/>
+        <div>
+          <label className="font-semibold block mb-1">Faculty Coordinator</label>
+          <input
+            className="w-full border rounded p-2"
+            value={report.facultyCoordinator || ""}
+            onChange={(e) =>
+              setReport({
+                ...report,
+                facultyCoordinator: e.target.value,
+              })
+            }
+          />
+        </div>
+        <div>
+          <label className="font-semibold block mb-1">Student Coordinator</label>
+          <input
+            className="w-full border rounded p-2"
+            value={report.studentCoordinator || ""}
+            onChange={(e) =>
+              setReport({
+                ...report,
+                studentCoordinator: e.target.value,
+              })
+            }
+          />
+        </div>
+      </div>
+
+      {/* BUDGET SPENT */}
+      <div className="border rounded-lg p-4 bg-muted/20 space-y-2">
+        <label className="font-semibold block text-sm text-foreground">
+          Budget Spent (₹)
+        </label>
+        <input
+          type="number"
+          min={0}
+          className="w-full max-w-xs border rounded p-2 text-sm font-medium"
+          value={report.budgetSpent ?? ""}
+          onChange={(e) =>
+            setReport({
+              ...report,
+              budgetSpent: Number(e.target.value) || 0,
+            })
+          }
+          placeholder="0"
+        />
       </div>
 
       {/* BROCHURE */}
