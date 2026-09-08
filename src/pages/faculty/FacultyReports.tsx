@@ -1228,225 +1228,263 @@ const FacultyReports = () => {
               </Button>
             </div>
 
-            {/* Document Paper Container */}
-            <div className="bg-white text-black p-8 md:p-12 rounded-lg border border-border shadow-md max-w-4xl mx-auto font-sans leading-snug">
-              {/* Header */}
-              <div className="flex items-center justify-between gap-4 border-b-2 border-black pb-4">
-                <div
-                  className="w-16 h-16 shrink-0"
-                  dangerouslySetInnerHTML={{ __html: DSCASC_LOGO_SVG }}
-                />
+            {/* Document Paper Container matching exact college format */}
+            <div className="bg-white text-black p-8 md:p-12 rounded-lg border border-slate-300 shadow-md max-w-4xl mx-auto font-serif leading-snug">
+              {/* PAGE 1 */}
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-4 pb-2">
+                  <img
+                    src="/dscasc_logo.png"
+                    alt="DSCASC Crest"
+                    className="w-16 h-16 object-contain shrink-0"
+                  />
 
-                <div className="text-center space-y-1 flex-1">
-                  <h2 className="text-lg md:text-xl font-bold uppercase tracking-tight text-slate-900">
-                    Dayananda Sagar College of Arts, Science, and Commerce
-                  </h2>
-                  <h3 className="text-sm font-semibold text-slate-800">
-                    Internal Quality Assurance Cell
-                  </h3>
-                  <p className="text-xs md:text-sm font-bold text-slate-900">
-                    {formData.type || "FDP"} on “{formData.name || "Event Title"}”
-                  </p>
+                  <div className="text-center space-y-1 flex-1 px-2">
+                    <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
+                      Dayananda Sagar College of Arts, Science, and Commerce
+                    </h2>
+                    <h3 className="text-sm font-bold text-slate-800">
+                      Internal Quality Assurance Cell
+                    </h3>
+                    <p className="text-xs md:text-sm font-bold text-slate-900">
+                      {formData.type || "FDP"} on “{formData.name || "Computational Mathematics for AI & Machine Learning: Modeling, Analysis, and Research Paper Writing"}”
+                    </p>
+                  </div>
+
+                  <img
+                    src="/iic_logo.png"
+                    alt="IIC Logo"
+                    className="w-28 h-12 object-contain shrink-0"
+                  />
                 </div>
 
-                <div
-                  className="w-24 h-12 shrink-0"
-                  dangerouslySetInnerHTML={{ __html: IIC_LOGO_SVG }}
-                />
+                {/* Department & Date Row */}
+                <div className="flex justify-between items-center text-xs font-bold pt-1 pb-1">
+                  <span>Department: {formData.department || "BCA"}</span>
+                  <span>Date of Report: {formData.reportDate || "31-01-2026"}</span>
+                </div>
+
+                {/* 24-Point Table */}
+                <div className="border border-black overflow-x-auto">
+                  <table className="w-full text-xs border-collapse font-serif">
+                    <thead>
+                      <tr className="border-b border-black font-bold">
+                        <th className="border-r border-black p-2 w-10 text-center">
+                          Sl.<br />No.
+                        </th>
+                        <th className="border-r border-black p-2 w-44 text-left">Particulars</th>
+                        <th className="p-2 text-left">Event related Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">1.</td>
+                        <td className="border-r border-black p-2 font-bold">Event*</td>
+                        <td className="p-2">{formData.type || "Faculty Development Program"}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">2.</td>
+                        <td className="border-r border-black p-2 font-bold">Title of the Event</td>
+                        <td className="p-2 font-bold">“{formData.name}”</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">3.</td>
+                        <td className="border-r border-black p-2 font-bold">Date of Conduction</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1">{formData.date || "22nd ,24th ,28th, 30th ,31st Jan 2026"}</div>
+                            <div className="p-2 flex items-center gap-2 w-56">
+                              <span className="font-bold">4. &nbsp; Time :</span>
+                              <span className="font-bold">{formData.time || "2:00 PM to 4:00 PM"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">5.</td>
+                        <td className="border-r border-black p-2 font-bold">Venue</td>
+                        <td className="p-2">{formData.venue || "Online Google meet"}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center align-top">6.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Resource Person 1 Details</td>
+                        <td className="p-2 space-y-0.5 font-bold">
+                          <div>{formData.resourcePerson1?.name || "Nirmal Gaud"}</div>
+                          <div>{formData.resourcePerson1?.designation || "Founder & CEO"}</div>
+                          <div>{formData.resourcePerson1?.organization || "Cognitia Research - ThinkAI"}</div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">7.</td>
+                        <td className="border-r border-black p-2 font-bold">Topics Covered</td>
+                        <td className="p-2">{formData.resourcePerson1Topics || "Mathematics behind AI/ML model with tips and tools to write Research paper"}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">8.</td>
+                        <td className="border-r border-black p-2 font-bold">Resource Person 2 Details</td>
+                        <td className="p-2">{formData.resourcePerson2?.name || "NA"}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">9.</td>
+                        <td className="border-r-black p-2 font-bold">Topics Covered</td>
+                        <td className="p-2">{formData.resourcePerson2Topics || "NA"}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">10.</td>
+                        <td className="border-r border-black p-2 font-bold">No. Faculty Participants</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 w-32 flex justify-between">
+                              <span className="font-bold">Internal:</span>
+                              <span className="font-bold">{formData.facultyParticipants?.internal ?? 22}</span>
+                            </div>
+                            <div className="p-2 flex-1 flex justify-between">
+                              <span className="font-bold">External:</span>
+                              <span className="font-bold">{formData.facultyParticipants?.external || "NIL"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">11.</td>
+                        <td className="border-r border-black p-2 font-bold">No. Student Participants</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 w-32 flex justify-between">
+                              <span className="font-bold">Internal:</span>
+                              <span>{formData.studentParticipants?.internal || "---"}</span>
+                            </div>
+                            <div className="p-2 flex-1 flex justify-between">
+                              <span className="font-bold">External:</span>
+                              <span className="font-bold">{formData.studentParticipants?.external || "NIL"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center align-top">12.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Faculty Coordinator</td>
+                        <td className="p-2 whitespace-pre-line leading-relaxed">{formData.facultyCoordinatorDetails}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center align-top">13.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Student Coordinator/s</td>
+                        <td className="p-2 whitespace-pre-line leading-relaxed">{formData.studentCoordinatorDetails}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">14.</td>
+                        <td className="border-r border-black p-2 font-bold">Total Expenditure</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1 font-bold">{formData.totalExpenditure || "20,000/-"}</div>
+                            <div className="p-2 w-64 flex items-center gap-2">
+                              <span className="font-bold">15. &nbsp; Sponsors and Amount (if any)</span>
+                              <span className="font-bold">{formData.sponsors || "NA"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">16.</td>
+                        <td className="border-r border-black p-2 font-bold">Agenda of the Event</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1">{formData.agenda || "Training on AI/ML model analyis and research paper writing"}</div>
+                            <div className="p-2 w-64 flex items-center gap-2">
+                              <span className="font-bold">17. &nbsp; Provide the link of report on Website</span>
+                              <span className="font-bold">{formData.websiteReportLink || "No"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">18.</td>
+                        <td className="border-r border-black p-2 font-bold">Social Media Links</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1">{formData.socialMediaLinks || "---"}</div>
+                            <div className="p-2 w-64 flex items-center gap-2">
+                              <span className="font-bold">19. &nbsp; Report sent to Newspapers?:</span>
+                              <span className="font-bold">{formData.newspaperReport || "No"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">20.</td>
+                        <td className="border-r border-black p-2 font-bold">Certificates Printed?</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1 font-bold">{formData.certificatesPrinted || "No"}</div>
+                            <div className="p-2 w-64 flex items-center gap-2">
+                              <span className="font-bold">21. &nbsp; Feedback Collected?</span>
+                              <span className="font-bold">{formData.feedbackCollected || "Yes"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="border-r border-black p-2 font-bold text-center">22.</td>
+                        <td className="border-r border-black p-2 font-bold">Attendance Sheet Attached?*</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1 font-bold">{formData.attendanceAttached || "Yes"}</div>
+                            <div className="p-2 w-64 flex items-center gap-2">
+                              <span className="font-bold">23 &nbsp; Photographs of the Event</span>
+                              <span className="font-bold">{formData.photographsAttached || "Attached"}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="border-r border-black p-2 font-bold text-center align-top">24.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Summary of the Event</td>
+                        <td className="p-2 leading-relaxed text-justify">
+                          {formData.summary?.slice(0, 560) || "The Department of Computer Applications – BCA conducted a FDP for faculty members by Nirmal Gaud..."}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {/* Department & Date Row */}
-              <div className="flex justify-between items-center text-xs font-bold py-2.5">
-                <span>Department: {formData.department || "BCA"}</span>
-                <span>Date of Report: {formData.reportDate || new Date().toLocaleDateString("en-GB")}</span>
-              </div>
+              {/* PAGE 2 BREAK & CONTINUATION */}
+              <div className="mt-12 pt-8 border-t-2 border-dashed border-slate-400 space-y-6">
+                <div className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">
+                  --- PAGE 2 CONTINUATION ---
+                </div>
 
-              {/* 24-Point Table */}
-              <div className="border-2 border-black overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-black bg-slate-50 font-bold">
-                      <th className="border-r-2 border-black p-2 w-10 text-center">Sl. No.</th>
-                      <th className="border-r-2 border-black p-2 w-44 text-left">Particulars</th>
-                      <th className="p-2 text-left">Event related Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">1.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Event*</td>
-                      <td className="p-2">{formData.type}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">2.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Title of the Event</td>
-                      <td className="p-2 font-semibold">“{formData.name}”</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">3.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Date of Conduction</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.date || "-"}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">4. Time :</span>
-                            <span>{formData.time || "-"}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">5.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Venue</td>
-                      <td className="p-2">{formData.venue}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">6.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Resource Person 1 Details</td>
-                      <td className="p-2 space-y-0.5">
-                        <div className="font-bold">{formData.resourcePerson1?.name}</div>
-                        <div>{formData.resourcePerson1?.designation}</div>
-                        <div>{formData.resourcePerson1?.organization}</div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">7.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Topics Covered</td>
-                      <td className="p-2">{formData.resourcePerson1Topics}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">8.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Resource Person 2 Details</td>
-                      <td className="p-2">{formData.resourcePerson2?.name || "NA"}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">9.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Topics Covered</td>
-                      <td className="p-2">{formData.resourcePerson2Topics || "NA"}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">10.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">No. Faculty Participants</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black flex gap-2">
-                            <span className="font-bold">Internal:</span>
-                            <span>{formData.facultyParticipants?.internal}</span>
-                          </div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">External:</span>
-                            <span>{formData.facultyParticipants?.external || "NIL"}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">11.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">No. Student Participants</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black flex gap-2">
-                            <span className="font-bold">Internal:</span>
-                            <span>{formData.studentParticipants?.internal || "---"}</span>
-                          </div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">External:</span>
-                            <span>{formData.studentParticipants?.external || "NIL"}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">12.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Faculty Coordinator</td>
-                      <td className="p-2 whitespace-pre-line">{formData.facultyCoordinatorDetails}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">13.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Student Coordinator/s</td>
-                      <td className="p-2 whitespace-pre-line">{formData.studentCoordinatorDetails}</td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">14.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Total Expenditure</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.totalExpenditure}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">15. Sponsors and Amount (if any):</span>
-                            <span>{formData.sponsors}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">16.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Agenda of the Event</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.agenda}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">17. Provide link on Website:</span>
-                            <span>{formData.websiteReportLink}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">18.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Social Media Links</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.socialMediaLinks}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">19. Report to Newspapers?:</span>
-                            <span>{formData.newspaperReport}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">20.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Certificates Printed?</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.certificatesPrinted}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">21. Feedback Collected?:</span>
-                            <span>{formData.feedbackCollected}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-black">
-                      <td className="border-r-2 border-black p-2 font-bold text-center">22.</td>
-                      <td className="border-r-2 border-black p-2 font-bold">Attendance Sheet Attached?*</td>
-                      <td className="p-0">
-                        <div className="grid grid-cols-2">
-                          <div className="p-2 border-r border-black">{formData.attendanceAttached}</div>
-                          <div className="p-2 flex gap-2">
-                            <span className="font-bold">23. Photographs of Event:</span>
-                            <span>{formData.photographsAttached}</span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="border-r-2 border-black p-2 font-bold text-center align-top">24.</td>
-                      <td className="border-r-2 border-black p-2 font-bold align-top">Summary of the Event</td>
-                      <td className="p-2 leading-relaxed text-justify">{formData.summary}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                <div className="border border-black overflow-x-auto">
+                  <table className="w-full text-xs border-collapse font-serif">
+                    <thead>
+                      <tr className="border-b border-black font-bold">
+                        <th className="border-r border-black p-2 w-10 text-center">Sl.<br />No.</th>
+                        <th className="border-r border-black p-2 w-44 text-left">Particulars</th>
+                        <th className="p-2 text-left">Event related Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border-r border-black p-2"></td>
+                        <td className="border-r border-black p-2"></td>
+                        <td className="p-3 leading-relaxed text-justify">
+                          {formData.summary?.slice(560) ||
+                            "walkthroughs and dataset analysis to bridge theory and application. In addition, participants were trained in using Overleaf for academic writing, enabling them to collaboratively prepare and format research papers efficiently according to standard publication guidelines. The faculty where also appraised of journal quartile and publications. Excellent feedback for FDP was received from faculty members."}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* 5 Institutional Signatories at Bottom */}
-              <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold pt-16 mt-8 border-t border-slate-300">
-                <div>Event Coordinators</div>
-                <div>HOD-BCA</div>
-                <div>Vice-Principal</div>
-                <div>IQAC Coordinator</div>
-                <div>Principal</div>
+                {/* 5 Institutional Signatories at Bottom */}
+                <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold pt-16 pb-4">
+                  <div>Event Coordinators</div>
+                  <div>HOD-BCA</div>
+                  <div>Vice-Principal</div>
+                  <div>IQAC Coordinator</div>
+                  <div>Principal</div>
+                </div>
               </div>
 
               {/* Annexure Cards */}
