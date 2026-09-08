@@ -61,9 +61,8 @@ const facultyNav = [
   { title: "Events", url: "/faculty/events", icon: CalendarDays },
   { title: "Attendance", url: "/faculty/attendance", icon: ClipboardList },
   { title: "Analytics", url: "/faculty/analytics", icon: BarChart3 },
-  { title: "Members", url: "/faculty/members", icon: Users },
   { title: "Feedback", url: "/faculty/feedback", icon: MessageSquare },
-    { title: "Messages", url: "/messages", icon: MessageSquare },
+  { title: "Messages", url: "/messages", icon: MessageSquare },
   { title: "Reports", url: "/faculty/reports", icon: FileText },
 ];
 
