@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { PDFDocument } from "pdf-lib";
 import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "./reportLogos";
 
 export interface ReportData {
@@ -101,7 +102,19 @@ async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
   });
 }
 
-export async function generateInstitutionalReportPdf(report: ReportData): Promise<jsPDF> {
+// Fetch file as ArrayBuffer
+async function fetchArrayBuffer(url: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch (err) {
+    console.warn("Failed to fetch file buffer:", err);
+    return null;
+  }
+}
+
+export async function generateInstitutionalReportPdf(report: ReportData): Promise<{ save: (filename: string) => void }> {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
@@ -127,7 +140,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   const renderHeader = (isFirstPage: boolean = true) => {
     const headerTop = 28;
 
-    // Left Logo: Authentic DSCASC Crest (Increased size a tiny bit)
+    // Left Logo: Authentic DSCASC Crest
     if (DSCASC_LOGO_PNG_BASE64) {
       try {
         doc.addImage(DSCASC_LOGO_PNG_BASE64, "PNG", marginLeft, headerTop, 54, 54);
@@ -136,7 +149,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       }
     }
 
-    // Right Logo: Authentic IIC Logo (Increased size a tiny bit)
+    // Right Logo: Authentic IIC Logo
     if (IIC_LOGO_PNG_BASE64) {
       try {
         doc.addImage(IIC_LOGO_PNG_BASE64, "PNG", pageWidth - marginRight - 98, headerTop + 4, 98, 42);
@@ -362,7 +375,6 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   };
 
   // Row for Split Particulars (e.g. 14 & 15, 16 & 17, 18 & 19, 20 & 21, 22 & 23)
-  // Shift points 15, 17, 19, 21, 23 to the left by setting leftValW to ~95pt
   const drawSubdividedRow = (
     sl1: string,
     part1: string,
@@ -506,7 +518,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "15.",
     "Sponsors and Amount (if any)",
     report.sponsors || "NA",
-    140
+    95
   );
 
   // 16 & 17: Agenda of the Event | Provide link of report on College Website
@@ -517,7 +529,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "17.",
     "Provide the link of the report uploaded on College Website",
     report.websiteReportLink || "No",
-    140
+    95
   );
 
   // 18 & 19: Social Media Links | Report sent to Newspapers?
@@ -528,7 +540,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "19.",
     "Report sent to Newspapers? If yes, provide cuttings/images:",
     report.newspaperReport || "No",
-    140
+    95
   );
 
   // 20 & 21: Certificates Printed? | Feedback Collected?
@@ -539,7 +551,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "21.",
     "Feedback Collected?",
     report.feedbackCollected ? String(report.feedbackCollected) : "Yes",
-    140
+    95
   );
 
   // 22 & 23: Attendance Sheet Attached?* | Photographs of the Event
@@ -550,7 +562,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "23.",
     "Photographs of the Event",
     report.photographsAttached || "Attached",
-    140
+    95
   );
 
   // 24. Summary of the Event
@@ -616,15 +628,19 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     doc.text(sig, x, sigY, { align: "center" });
   });
 
-  // ================= ANNEXURES =================
+  // ================= ANNEXURES WITH EMBEDDED IMAGES / PDF MERGE =================
   const backendBase = "http://localhost:5000";
 
-  // ANNEXURE I: BROCHURE
+  // ANNEXURE I: BROCHURE (If Image)
   const brochure = report.attachments?.find(
     (att) => att.label === "brochure" && !att.isDeleted
   );
 
-  if (brochure?.url) {
+  const isBrochurePdf =
+    brochure?.url?.toLowerCase().endsWith(".pdf") ||
+    brochure?.originalName?.toLowerCase().endsWith(".pdf");
+
+  if (brochure?.url && !isBrochurePdf) {
     doc.addPage();
     renderHeader(false);
 
@@ -643,12 +659,9 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       const brochureBase64 = await getBase64ImageFromUrl(fullBrochureUrl);
       if (brochureBase64) {
         doc.addImage(brochureBase64, "JPEG", marginLeft + 30, 110, contentWidth - 60, 620, undefined, "FAST");
-      } else {
-        setFont("italic", 10);
-        doc.text(`Brochure File: ${brochure.originalName || "Event Brochure (Attached)"}`, pageWidth / 2, 160, { align: "center" });
       }
-    } catch {
-      doc.text("Event Brochure Attached", pageWidth / 2, 160, { align: "center" });
+    } catch (err) {
+      console.warn("Brochure image embed error:", err);
     }
   }
 
@@ -703,42 +716,113 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     }
   }
 
-  // ANNEXURE III: SIGNED ATTENDANCE SHEETS
-  if (report.signedAttendanceSheets && report.signedAttendanceSheets.length > 0) {
-    for (let sIdx = 0; sIdx < report.signedAttendanceSheets.length; sIdx++) {
-      const sheet = report.signedAttendanceSheets[sIdx];
-      doc.addPage();
-      renderHeader(false);
+  // ANNEXURE III: SIGNED ATTENDANCE SHEETS (If Image)
+  const imageSheets = (report.signedAttendanceSheets || []).filter((s) => {
+    const isPdf =
+      s.url?.toLowerCase().endsWith(".pdf") ||
+      s.originalName?.toLowerCase().endsWith(".pdf") ||
+      s.fileName?.toLowerCase().endsWith(".pdf");
+    return !isPdf;
+  });
 
-      setFont("bold", 12);
-      doc.text(
-        `ANNEXURE III: SIGNED ATTENDANCE SHEET (Page ${sIdx + 1})`,
-        pageWidth / 2,
-        85,
-        { align: "center" }
-      );
+  for (let sIdx = 0; sIdx < imageSheets.length; sIdx++) {
+    const sheet = imageSheets[sIdx];
+    doc.addPage();
+    renderHeader(false);
 
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.8);
-      doc.line(marginLeft, 95, pageWidth - marginRight, 95);
+    setFont("bold", 12);
+    doc.text(
+      `ANNEXURE III: SIGNED ATTENDANCE SHEET (Page ${sIdx + 1})`,
+      pageWidth / 2,
+      85,
+      { align: "center" }
+    );
 
-      const sheetUrl = sheet.url?.startsWith("http")
-        ? sheet.url
-        : `${backendBase}${sheet.url}`;
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.8);
+    doc.line(marginLeft, 95, pageWidth - marginRight, 95);
 
+    const sheetUrl = sheet.url?.startsWith("http")
+      ? sheet.url
+      : `${backendBase}${sheet.url}`;
+
+    try {
+      const sheetBase64 = await getBase64ImageFromUrl(sheetUrl);
+      if (sheetBase64) {
+        doc.addImage(sheetBase64, "JPEG", marginLeft + 10, 110, contentWidth - 20, 640, undefined, "FAST");
+      }
+    } catch (err) {
+      console.warn("Signed sheet image embed error:", err);
+    }
+  }
+
+  // ================= MERGE PDF FILES VIA PDF-LIB =================
+  const basePdfBytes = doc.output("arraybuffer");
+  const finalPdfDoc = await PDFDocument.load(basePdfBytes);
+
+  // 1. If Brochure was a PDF, append/merge its pages
+  if (brochure?.url && isBrochurePdf) {
+    const fullBrochureUrl = brochure.url.startsWith("http")
+      ? brochure.url
+      : `${backendBase}${brochure.url}`;
+
+    const brochureBuffer = await fetchArrayBuffer(fullBrochureUrl);
+    if (brochureBuffer) {
       try {
-        const sheetBase64 = await getBase64ImageFromUrl(sheetUrl);
-        if (sheetBase64) {
-          doc.addImage(sheetBase64, "JPEG", marginLeft + 10, 110, contentWidth - 20, 640, undefined, "FAST");
-        } else {
-          setFont("bold", 10);
-          doc.text(`Scanned Signed Attendance Sheet: ${sheet.originalName || "attendance-sheet.pdf"}`, pageWidth / 2, 200, { align: "center" });
-        }
-      } catch {
-        doc.text(`Signed Attendance Sheet: ${sheet.originalName || "attendance.pdf"}`, pageWidth / 2, 200, { align: "center" });
+        const brochurePdfDoc = await PDFDocument.load(brochureBuffer);
+        const copiedPages = await finalPdfDoc.copyPages(
+          brochurePdfDoc,
+          brochurePdfDoc.getPageIndices()
+        );
+        copiedPages.forEach((p) => finalPdfDoc.addPage(p));
+      } catch (err) {
+        console.warn("Failed to merge brochure PDF:", err);
       }
     }
   }
 
-  return doc;
+  // 2. If Signed Attendance Sheets were PDF files, merge every single page directly!
+  const pdfSheets = (report.signedAttendanceSheets || []).filter((s) => {
+    return (
+      s.url?.toLowerCase().endsWith(".pdf") ||
+      s.originalName?.toLowerCase().endsWith(".pdf") ||
+      s.fileName?.toLowerCase().endsWith(".pdf")
+    );
+  });
+
+  for (const sheet of pdfSheets) {
+    if (!sheet.url) continue;
+    const sheetFullUrl = sheet.url.startsWith("http")
+      ? sheet.url
+      : `${backendBase}${sheet.url}`;
+
+    const sheetBuffer = await fetchArrayBuffer(sheetFullUrl);
+    if (sheetBuffer) {
+      try {
+        const sheetPdfDoc = await PDFDocument.load(sheetBuffer);
+        const copiedPages = await finalPdfDoc.copyPages(
+          sheetPdfDoc,
+          sheetPdfDoc.getPageIndices()
+        );
+        copiedPages.forEach((p) => finalPdfDoc.addPage(p));
+      } catch (err) {
+        console.warn("Failed to merge signed attendance PDF sheet:", err);
+      }
+    }
+  }
+
+  const finalMergedBytes = await finalPdfDoc.save();
+
+  return {
+    save: (filename: string) => {
+      const blob = new Blob([finalMergedBytes], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    },
+  };
 }
