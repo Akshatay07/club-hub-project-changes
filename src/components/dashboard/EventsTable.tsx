@@ -841,11 +841,12 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
                   </p>
                 )}
               </div>
-            </>
-          );
-        })()}
-        </DialogContent>
-      </Dialog>
+            </div>
+          </>
+        );
+      })()}
+    </DialogContent>
+  </Dialog>
 
       {/* ================= MODAL 2: EDIT EVENT ================= */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

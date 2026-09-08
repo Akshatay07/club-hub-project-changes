@@ -435,46 +435,184 @@ router.patch(
   auth,
   permit("admin", "faculty"),
   async (req, res) => {
-try {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
 
-    const updated = await Event.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
+      const updated = await Event.findByIdAndUpdate(
+        req.params.id,
+        { $set: req.body },
+        { new: true }
+      ).populate("clubId", "name").populate("facultyId", "name email");
 
-    res.json(updated);
+      getIo().emit("event:updated", updated);
 
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
   }
-});
+);
+
+// ================= UPLOAD EVENT PHOTOS =================
+router.post(
+  "/:id/photos",
+  auth,
+  permit("admin", "faculty"),
+  upload.array("photos", 10),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: "No photos uploaded" });
+      }
+
+      const captions = Array.isArray(req.body.captions)
+        ? req.body.captions
+        : [req.body.captions || ""];
+
+      const newPhotos = req.files.map((file, idx) => ({
+        fileName: file.filename,
+        originalName: file.originalname,
+        url: `/uploads/${file.filename}`,
+        caption: captions[idx] || req.body.caption || "Event Photograph",
+        size: file.size,
+        uploadedBy: req.user._id,
+        uploadedAt: new Date(),
+      }));
+
+      if (!event.eventPhotos) {
+        event.eventPhotos = [];
+      }
+      event.eventPhotos.push(...newPhotos);
+      event.photographsAttached = "Attached";
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Photos uploaded successfully",
+        photos: event.eventPhotos,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// ================= DELETE EVENT PHOTO =================
+router.delete(
+  "/:id/photos/:photoId",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      event.eventPhotos = (event.eventPhotos || []).filter(
+        (p) => String(p._id) !== String(req.params.photoId)
+      );
+
+      if (event.eventPhotos.length === 0) {
+        event.photographsAttached = "No";
+      }
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Photo deleted successfully",
+        photos: event.eventPhotos,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// ================= UPLOAD/UPDATE BROCHURE =================
+router.post(
+  "/:id/brochure",
+  auth,
+  permit("admin", "faculty"),
+  upload.single("brochure"),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "Brochure file is required" });
+      }
+
+      // Mark existing brochure attachments as deleted/replace
+      (event.attachments || []).forEach((att) => {
+        if (att.label === "brochure") {
+          att.isDeleted = true;
+        }
+      });
+
+      const brochureMeta = {
+        ...fileToMeta(req.file, req.user._id, "faculty"),
+        label: "brochure",
+      };
+
+      if (!event.attachments) event.attachments = [];
+      event.attachments.push(brochureMeta);
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Brochure uploaded successfully",
+        brochure: brochureMeta,
+        attachments: event.attachments,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
 
 router.patch(
   "/:id/submit-report",
   auth,
   permit("admin", "faculty"),
   async (req, res) => {
-try {
+    try {
+      const updated = await Event.findByIdAndUpdate(
+        req.params.id,
+        {
+          reportSubmitted: true,
+          reportApproved: false,
+          reportRejected: false,
+        },
+        { new: true }
+      ).populate("clubId", "name").populate("facultyId", "name email");
 
-    const updated = await Event.findByIdAndUpdate(
-      req.params.id,
-      {
-        reportSubmitted: true,
-      },
-      { new: true }
-    );
+      getIo().emit("event:updated", updated);
 
-    res.json(updated);
-
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({
+        message: err.message,
+      });
+    }
   }
-});
+);
 
 
 

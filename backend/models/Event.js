@@ -113,120 +113,83 @@ const eventSchema = new mongoose.Schema(
       },
     ],
 
-    // ===== NEW (REPORT FIELDS) =====
-
-    type: { type: String, default: "" }, // FDP / Workshop
-    department: { type: String, default: "" },
+    // ===== 24-POINT INSTITUTIONAL REPORT FIELDS =====
+    type: { type: String, default: "" }, // Event type (e.g. Faculty Development Program, Workshop)
+    department: { type: String, default: "BCA" },
     venue: { type: String, default: "" },
+    reportDate: { type: String, default: "" },
 
-    resourcePerson: {
-  name: { type: String, default: "" },
-  organization: { type: String, default: "" },
-},
+    // 6 & 7: Resource Person 1 & Topics
+    resourcePerson1: {
+      name: { type: String, default: "" },
+      designation: { type: String, default: "" },
+      organization: { type: String, default: "" },
+    },
+    resourcePerson1Topics: { type: String, default: "" },
 
-facultyParticipants: {
-  internal: { type: Number, default: 0 },
-  external: { type: Number, default: 0 },
-},
+    // 8 & 9: Resource Person 2 & Topics
+    resourcePerson2: {
+      name: { type: String, default: "" },
+      designation: { type: String, default: "" },
+      organization: { type: String, default: "" },
+    },
+    resourcePerson2Topics: { type: String, default: "" },
 
-studentParticipants: {
-  internal: { type: Number, default: 0 },
-  external: { type: Number, default: 0 },
-},
+    // 10 & 11: Participant Counts
+    facultyParticipants: {
+      internal: { type: Number, default: 0 },
+      external: { type: Number, default: 0 },
+    },
+    studentParticipants: {
+      internal: { type: Number, default: 0 },
+      external: { type: Number, default: 0 },
+    },
 
-eventType: {
-  type: String,
-  default: "",
-},
+    // 12 & 13: Coordinators
+    facultyCoordinator: { type: String, default: "" },
+    facultyCoordinatorDetails: { type: String, default: "" },
+    studentCoordinator: { type: String, default: "" },
+    studentCoordinatorDetails: { type: String, default: "" },
 
-department: {
-  type: String,
-  default: "",
-},
+    // 14 & 15: Financials
+    totalExpenditure: { type: String, default: "" },
+    sponsors: { type: String, default: "NA" },
 
-venue: {
-  type: String,
-  default: "",
-},
+    // 16 & 17: Agenda & Website
+    agenda: { type: String, default: "" },
+    websiteReportLink: { type: String, default: "No" },
 
-resourcePersonName: {
-  type: String,
-  default: "",
-},
+    // 18 & 19: Media & Press
+    socialMediaLinks: { type: String, default: "---" },
+    newspaperReport: { type: String, default: "No" },
 
-resourceOrganization: {
-  type: String,
-  default: "",
-},
+    // 20, 21, 22, 23: Verifications
+    certificatesPrinted: { type: String, default: "No" },
+    feedbackCollected: { type: String, default: "Yes" },
+    attendanceAttached: { type: String, default: "Yes" },
+    photographsAttached: { type: String, default: "Attached" },
 
-facultyInternal: {
-  type: Number,
-  default: 0,
-},
+    // 24: Comprehensive Summary
+    summary: { type: String, default: "" },
 
-facultyExternal: {
-  type: Number,
-  default: 0,
-},
+    // Event Photographs Annexure
+    eventPhotos: [
+      {
+        fileName: { type: String, default: "" },
+        originalName: { type: String, default: "" },
+        url: { type: String, default: "" },
+        caption: { type: String, default: "" },
+        size: { type: Number, default: 0 },
+        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
 
-studentsInternal: {
-  type: Number,
-  default: 0,
-},
-
-studentsExternal: {
-  type: Number,
-  default: 0,
-},
-
-topicsCovered: {
-  type: String,
-  default: "",
-},
-
-agenda: {
-  type: String,
-  default: "",
-},
-
-summary: {
-  type: String,
-  default: "",
-},
-
-facultyCoordinator: {
-  type: String,
-  default: "",
-},
-
-studentCoordinator: {
-  type: String,
-  default: "",
-},
-
-reportSubmitted: {
-  type: Boolean,
-  default: false,
-},
-
-reportApproved: {
-  type: Boolean,
-  default: false,
-},
-
-reportRejected: {
-  type: Boolean,
-  default: false,
-},
-
-reportRemarks: {
-  type: String,
-  default: "",
-},
-
-certificatesPrinted: { type: Boolean, default: false },
-feedbackCollected: { type: Boolean, default: false },
-attendanceAttached: { type: Boolean, default: false },
+    // Workflow status
+    reportSubmitted: { type: Boolean, default: false },
+    reportApproved: { type: Boolean, default: false },
+    reportRejected: { type: Boolean, default: false },
+    reportRemarks: { type: String, default: "" },
   },
   { timestamps: true }
 );
