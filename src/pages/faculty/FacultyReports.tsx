@@ -471,7 +471,7 @@ const FacultyReports = () => {
         </div>
 
         {/* Action Buttons in Header */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -484,36 +484,6 @@ const FacultyReports = () => {
               <Sparkles className="w-4 h-4 mr-1.5 text-amber-500" />
             )}
             Save Draft
-          </Button>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setIsAttachmentModalOpen(true)}
-            disabled={!selectedId}
-            className="border border-border/80"
-          >
-            <Upload className="w-4 h-4 mr-1.5 text-blue-500" />
-            Manage Attachments
-            {((formData.eventPhotos?.length || 0) > 0 || currentBrochure || (formData.signedAttendanceSheets?.length || 0) > 0) && (
-              <Badge className="ml-1.5 h-4 px-1 text-[10px] bg-primary text-primary-foreground">
-                {(formData.eventPhotos?.length || 0) + (currentBrochure ? 1 : 0) + (formData.signedAttendanceSheets?.length || 0)}
-              </Badge>
-            )}
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={handleDownloadPdf}
-            disabled={downloadingPdf || !selectedId}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-          >
-            {downloadingPdf ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-1.5" />
-            )}
-            Download Official PDF
           </Button>
         </div>
       </div>
