@@ -28,6 +28,7 @@ import SetPassword from "./pages/SetPassword";
 import Index from "./pages/Index";
 import Clubs from "./pages/Clubs";
 import Events from "./pages/Events";
+import AdminComplaints from "./pages/admin/AdminComplaints";
 import Reports from "./pages/faculty/FacultyReports";
 import TrashPage from "@/pages/TrashPage";
 
@@ -205,7 +206,19 @@ const App = () => (
     </ProtectedRoute>
   }
 />
-              
+
+<Route
+  path="/admin/complaints"
+  element={
+    <ProtectedRoute>
+      <RoleRoute allowedRoles={["admin"]}>
+        <DashboardLayout>
+          <AdminComplaints />
+        </DashboardLayout>
+      </RoleRoute>
+    </ProtectedRoute>
+  }
+/>
 
               <Route
                 path="/admin/faculty-assignment"

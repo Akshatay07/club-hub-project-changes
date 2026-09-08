@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Bell,
   BarChart3,
+  AlertCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -38,15 +39,12 @@ const adminNav = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Clubs", url: "/admin/clubs", icon: Users },
   { title: "Events", url: "/admin/events", icon: CalendarDays },
-  { title: "Faculty", url: "/admin/faculty-assignment", icon: GraduationCap }, // ✅ FIXED
-    { title: "Messages", url: "/messages", icon: MessageSquare }, 
+  { title: "Faculty", url: "/admin/faculty-assignment", icon: GraduationCap },
+  { title: "Reports", url: "/admin/reports", icon: FileText },
+  { title: "Complaints & Feedback", url: "/admin/complaints", icon: AlertCircle },
+  { title: "Messages", url: "/messages", icon: MessageSquare }, 
   { title: "Trash", url: "/admin/trash", icon: Trash2 },
   { title: "Settings", url: "/admin/settings", icon: Settings },
-{
-  title: "Reports",
-  url: "/admin/reports",
-  icon: FileText,
-},
 ];
 
 const studentNav = [

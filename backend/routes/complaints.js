@@ -48,4 +48,43 @@ router.post("/", auth, permit("student"), async (req, res) => {
   }
 });
 
+router.patch("/:id/status", auth, permit("admin", "faculty"), async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["open", "reviewing", "resolved"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const complaint = await Complaint.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    )
+      .populate("studentId", "name email studentId")
+      .populate("clubId", "name");
+
+    if (!complaint) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+
+    getIo().emit("complaint:updated", complaint);
+    res.json(complaint);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete("/:id", auth, permit("admin"), async (req, res) => {
+  try {
+    const complaint = await Complaint.findByIdAndDelete(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+    getIo().emit("complaint:deleted", req.params.id);
+    res.json({ message: "Complaint deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;

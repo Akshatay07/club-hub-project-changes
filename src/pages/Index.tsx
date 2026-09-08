@@ -5,7 +5,6 @@ import ClubStatus from "@/components/dashboard/ClubStatus";
 import QuickStats from "@/components/dashboard/QuickStats";
 import EventsChart from "@/components/dashboard/EventsChart";
 import EventsTable from "@/components/dashboard/EventsTable";
-import ComplaintsFeed from "@/components/dashboard/ComplaintsFeed";
 import DayFlowCalendar from "@/components/dashboard/DayFlowCalendar";
 
 const Index = () => {
@@ -37,11 +36,8 @@ const Index = () => {
       <EventsChart />
       <DayFlowCalendar />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <EventsTable />
-        </div>
-        <ComplaintsFeed />
+      <div className="w-full">
+        <EventsTable />
       </div>
     </div>
   );
