@@ -1237,7 +1237,7 @@ const FacultyReports = () => {
                   <img
                     src="/dscasc_logo.png"
                     alt="DSCASC Crest"
-                    className="w-16 h-16 object-contain shrink-0"
+                    className="w-[76px] h-[76px] object-contain shrink-0"
                   />
 
                   <div className="text-center space-y-1 flex-1 px-2">
@@ -1255,7 +1255,7 @@ const FacultyReports = () => {
                   <img
                     src="/iic_logo.png"
                     alt="IIC Logo"
-                    className="w-28 h-12 object-contain shrink-0"
+                    className="w-32 h-14 object-contain shrink-0"
                   />
                 </div>
 
@@ -1377,8 +1377,8 @@ const FacultyReports = () => {
                         <td className="border-r border-black p-2 font-bold">Total Expenditure</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 flex-1 font-bold">{formData.totalExpenditure || "20,000/-"}</div>
-                            <div className="p-2 w-64 flex items-center gap-2">
+                            <div className="p-2 w-28 md:w-32 font-bold">{formData.totalExpenditure || "20,000/-"}</div>
+                            <div className="p-2 flex-1 flex items-center gap-2">
                               <span className="font-bold">15. &nbsp; Sponsors and Amount (if any)</span>
                               <span className="font-bold">{formData.sponsors || "NA"}</span>
                             </div>
@@ -1390,9 +1390,9 @@ const FacultyReports = () => {
                         <td className="border-r border-black p-2 font-bold">Agenda of the Event</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 flex-1">{formData.agenda || "Training on AI/ML model analyis and research paper writing"}</div>
-                            <div className="p-2 w-64 flex items-center gap-2">
-                              <span className="font-bold">17. &nbsp; Provide the link of report on Website</span>
+                            <div className="p-2 w-28 md:w-32">{formData.agenda || "Training on AI/ML model analyis and research paper writing"}</div>
+                            <div className="p-2 flex-1 flex items-center gap-2">
+                              <span className="font-bold">17. &nbsp; Provide the link of the report uploaded on College Website</span>
                               <span className="font-bold">{formData.websiteReportLink || "No"}</span>
                             </div>
                           </div>
@@ -1403,9 +1403,9 @@ const FacultyReports = () => {
                         <td className="border-r border-black p-2 font-bold">Social Media Links</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 flex-1">{formData.socialMediaLinks || "---"}</div>
-                            <div className="p-2 w-64 flex items-center gap-2">
-                              <span className="font-bold">19. &nbsp; Report sent to Newspapers?:</span>
+                            <div className="p-2 w-28 md:w-32">{formData.socialMediaLinks || "---"}</div>
+                            <div className="p-2 flex-1 flex items-center gap-2">
+                              <span className="font-bold">19. &nbsp; Report sent to Newspapers? If yes, provide cuttings/images:</span>
                               <span className="font-bold">{formData.newspaperReport || "No"}</span>
                             </div>
                           </div>
@@ -1416,8 +1416,8 @@ const FacultyReports = () => {
                         <td className="border-r border-black p-2 font-bold">Certificates Printed?</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 flex-1 font-bold">{formData.certificatesPrinted || "No"}</div>
-                            <div className="p-2 w-64 flex items-center gap-2">
+                            <div className="p-2 w-28 md:w-32 font-bold">{formData.certificatesPrinted || "No"}</div>
+                            <div className="p-2 flex-1 flex items-center gap-2">
                               <span className="font-bold">21. &nbsp; Feedback Collected?</span>
                               <span className="font-bold">{formData.feedbackCollected || "Yes"}</span>
                             </div>
@@ -1429,8 +1429,8 @@ const FacultyReports = () => {
                         <td className="border-r border-black p-2 font-bold">Attendance Sheet Attached?*</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 flex-1 font-bold">{formData.attendanceAttached || "Yes"}</div>
-                            <div className="p-2 w-64 flex items-center gap-2">
+                            <div className="p-2 w-28 md:w-32 font-bold">{formData.attendanceAttached || "Yes"}</div>
+                            <div className="p-2 flex-1 flex items-center gap-2">
                               <span className="font-bold">23 &nbsp; Photographs of the Event</span>
                               <span className="font-bold">{formData.photographsAttached || "Attached"}</span>
                             </div>

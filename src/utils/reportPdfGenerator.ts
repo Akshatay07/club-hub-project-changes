@@ -125,21 +125,21 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
 
   // Helper to render institutional header
   const renderHeader = (isFirstPage: boolean = true) => {
-    const headerTop = 32;
+    const headerTop = 28;
 
-    // Left Logo: Authentic DSCASC Crest
+    // Left Logo: Authentic DSCASC Crest (Increased size a tiny bit)
     if (DSCASC_LOGO_PNG_BASE64) {
       try {
-        doc.addImage(DSCASC_LOGO_PNG_BASE64, "PNG", marginLeft, headerTop, 46, 46);
+        doc.addImage(DSCASC_LOGO_PNG_BASE64, "PNG", marginLeft, headerTop, 54, 54);
       } catch (e) {
         console.warn("Logo add error:", e);
       }
     }
 
-    // Right Logo: Authentic IIC Logo
+    // Right Logo: Authentic IIC Logo (Increased size a tiny bit)
     if (IIC_LOGO_PNG_BASE64) {
       try {
-        doc.addImage(IIC_LOGO_PNG_BASE64, "PNG", pageWidth - marginRight - 82, headerTop + 4, 82, 34);
+        doc.addImage(IIC_LOGO_PNG_BASE64, "PNG", pageWidth - marginRight - 98, headerTop + 4, 98, 42);
       } catch (e) {
         console.warn("IIC Logo add error:", e);
       }
@@ -162,11 +162,11 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     if (isFirstPage) {
       const eventType = report.type || "FDP";
       const titleLine = `${eventType} on “${report.name || "Event Title"}”`;
-      const titleLines = doc.splitTextToSize(titleLine, contentWidth - 180);
+      const titleLines = doc.splitTextToSize(titleLine, contentWidth - 210);
       setFont("bold", 10.5);
       doc.text(titleLines, pageWidth / 2, headerTop + 40, { align: "center" });
 
-      const afterTitleY = headerTop + 40 + titleLines.length * 12 + 6;
+      const afterTitleY = headerTop + 40 + titleLines.length * 12 + 8;
 
       // Meta Line: Department & Date (Times-Bold)
       setFont("bold", 10);
@@ -181,7 +181,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       return afterTitleY + 8;
     }
 
-    return headerTop + 54;
+    return headerTop + 60;
   };
 
   curY = renderHeader(true);
@@ -362,6 +362,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   };
 
   // Row for Split Particulars (e.g. 14 & 15, 16 & 17, 18 & 19, 20 & 21, 22 & 23)
+  // Shift points 15, 17, 19, 21, 23 to the left by setting leftValW to ~95pt
   const drawSubdividedRow = (
     sl1: string,
     part1: string,
@@ -369,17 +370,17 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     sl2: string,
     part2: string,
     val2: string,
-    val1Width: number = 140
+    val1Width: number = 95
   ) => {
     const leftValW = val1Width;
-    const rightPartW = 145;
+    const rightPartW = 160;
     const rightValW = col3W - leftValW - rightPartW;
 
     setFont("normal", 9);
     const p1Lines = doc.splitTextToSize(part1, col2W - 8);
-    const v1Lines = doc.splitTextToSize(val1 || "-", leftValW - 10);
-    const p2Lines = doc.splitTextToSize(part2, rightPartW - 20);
-    const v2Lines = doc.splitTextToSize(val2 || "-", rightValW - 8);
+    const v1Lines = doc.splitTextToSize(val1 || "-", leftValW - 8);
+    const p2Lines = doc.splitTextToSize(part2, rightPartW - 16);
+    const v2Lines = doc.splitTextToSize(val2 || "-", rightValW - 6);
 
     const maxLines = Math.max(p1Lines.length, v1Lines.length, p2Lines.length, v2Lines.length);
     const rowH = Math.max(maxLines * 11 + 8, 18);
