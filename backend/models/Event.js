@@ -45,6 +45,21 @@ const eventSchema = new mongoose.Schema(
       index: true,
     },
 
+    approvalStage: {
+      type: String,
+      enum: [
+        "Event Coordinators",
+        "HOD-BCA",
+        "Vice-Principal",
+        "IQAC Coordinator",
+        "Principal",
+        "Approved",
+        "Rejected",
+      ],
+      default: "Event Coordinators",
+      index: true,
+    },
+
     date: { type: String, required: true },
     time: { type: String, required: true },
     endTime: { type: String, default: "" },

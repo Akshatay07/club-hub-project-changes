@@ -123,10 +123,17 @@ Club Management System
 router.put("/events/:id/status", async (req, res) => {
   try {
     const { status } = req.body;
+    const updateData = { status };
+
+    if (status === "approved") {
+      updateData.approvalStage = "Approved";
+    } else if (status === "rejected") {
+      updateData.approvalStage = "Rejected";
+    }
 
     const event = await Event.findByIdAndUpdate(
       req.params.id,
-      { status },
+      updateData,
       { new: true }
     );
 
@@ -140,6 +147,48 @@ router.put("/events/:id/status", async (req, res) => {
     }
 
     res.json({ message: "Status updated", event });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.put("/events/:id/stage", async (req, res) => {
+  try {
+    const { stage, approvalStage } = req.body;
+    const targetStage = stage || approvalStage;
+
+    if (!targetStage) {
+      return res.status(400).json({ message: "Approval stage is required" });
+    }
+
+    const updateData = { approvalStage: targetStage };
+
+    if (targetStage === "Approved") {
+      updateData.status = "approved";
+    } else if (targetStage === "Rejected") {
+      updateData.status = "rejected";
+    } else {
+      // Still in review stages
+      updateData.status = "pending";
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("event:updated", event);
+    }
+
+    res.json({ message: `Stage updated to ${targetStage}`, event });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

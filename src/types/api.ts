@@ -39,12 +39,21 @@ export interface Club {
 export interface Event {
   _id: string;
   name: string;
-  club: string;
-  status: "approved" | "pending" | "warning";
-  rating: string;
+  club?: string;
+  clubId?: any;
+  clubName?: string;
+  status: "approved" | "pending" | "warning" | "rejected";
+  rating?: string;
   date: string;
   time: string;
-  budgetUsed?: number; // ✅ add
+  venue?: string;
+  location?: string;
+  maxCapacity?: number;
+  description?: string;
+  budgetUsed?: number;
+  signedAttendanceSheets?: any[];
+  attendanceAttached?: boolean;
+  approvalStage?: string;
 }
 
 // Student event

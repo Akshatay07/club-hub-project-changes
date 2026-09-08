@@ -53,20 +53,42 @@ const registrations = await EventRegistration.find({
   studentId: userId,
 });
 
-const registrationMap = {};
-registrations.forEach((r) => {
-  registrationMap[r.eventId.toString()] = r.status;
-});
+    const registrationMap = {};
+    registrations.forEach((r) => {
+      registrationMap[r.eventId.toString()] = r.status;
+    });
 
-res.json(
-  events.map((event) => ({
-    ...event.toObject(),
-    clubName: event.clubId?.name || "",
-    facultyName: event.facultyId?.name || "",
-    registrationStatus:
-      registrationMap[event._id.toString()] || "not_registered",
-  }))
-);
+    // Auto-sync legacy events in background if needed
+    Event.updateMany(
+      { status: "approved", approvalStage: { $ne: "Approved" } },
+      { $set: { approvalStage: "Approved" } }
+    ).catch(() => {});
+
+    Event.updateMany(
+      { status: "rejected", approvalStage: { $ne: "Rejected" } },
+      { $set: { approvalStage: "Rejected" } }
+    ).catch(() => {});
+
+    res.json(
+      events.map((event) => {
+        const obj = event.toObject();
+        let stage = obj.approvalStage || "Event Coordinators";
+        if (obj.status === "approved" && stage !== "Approved") {
+          stage = "Approved";
+        } else if (obj.status === "rejected" && stage !== "Rejected") {
+          stage = "Rejected";
+        }
+
+        return {
+          ...obj,
+          approvalStage: stage,
+          clubName: event.clubId?.name || "",
+          facultyName: event.facultyId?.name || "",
+          registrationStatus:
+            registrationMap[event._id.toString()] || "not_registered",
+        };
+      })
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
