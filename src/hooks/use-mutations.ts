@@ -206,7 +206,7 @@ export const useBulkMarkAttendance = () => {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: {
+    mutationFn: async (data: { ids: string[]; status?: string } | {
       eventId: string;
       attendees: { studentId: string; status: string }[];
     }) => {

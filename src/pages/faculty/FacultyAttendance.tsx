@@ -92,9 +92,7 @@ const FacultyAttendance = () => {
   // Modal States
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
-  const [downloadRows, setDownloadRows] = useState<number>(30);
-  const [isDownloadingSheet, setIsDownloadingSheet] = useState(false);
+  const [isDownloadingRecords, setIsDownloadingRecords] = useState(false);
 
   // Upload Modal State
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -221,40 +219,39 @@ const FacultyAttendance = () => {
     );
   };
 
-  // Download blank physical attendance sheet PDF
-  const handleDownloadBlankPDF = async (rowsToDownload?: number) => {
+  // Download Populated Attendance Records PDF for the selected event
+  const handleDownloadAttendancePDF = async () => {
+    if (!selectedEvent) {
+      toast({ title: "Please select an event first", variant: "destructive" });
+      return;
+    }
+
     try {
-      if (!selectedEvent) {
-        toast({ title: "Please select an event first", variant: "destructive" });
-        return;
-      }
-      setIsDownloadingSheet(true);
-      const rows = rowsToDownload || downloadRows || 30;
-      const res = await api.get(`/faculty/attendance/${selectedEvent}/pdf?rows=${rows}`, {
+      setIsDownloadingRecords(true);
+      const res = await api.get(`/faculty/attendance/${selectedEvent}/records-pdf`, {
         responseType: "blob",
       });
       const file = new Blob([res.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `attendance-${activeEvent?.name || selectedEvent}.pdf`;
+      a.download = `attendance-${activeEvent?.name || "event"}-records.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setIsDownloadOpen(false);
       toast({
-        title: "Attendance Sheet Ready",
-        description: `Downloaded attendance sheet with ${rows} rows for ${activeEvent?.name || "the event"}.`,
+        title: "Attendance Sheet Downloaded",
+        description: `Downloaded attendance ledger with student records for ${activeEvent?.name || "the event"}.`,
       });
     } catch (err: any) {
       toast({
         title: "Download Failed",
-        description: err?.response?.data?.message || "Could not generate PDF",
+        description: err?.response?.data?.message || "Could not generate attendance PDF",
         variant: "destructive",
       });
     } finally {
-      setIsDownloadingSheet(false);
+      setIsDownloadingRecords(false);
     }
   };
 
@@ -506,15 +503,25 @@ const FacultyAttendance = () => {
             Import Google Sheet
           </Button>
 
-          {/* BUTTON 3: Download Blank PDF Sheet */}
+          {/* BUTTON 3: Download Attendance Records PDF */}
           <Button
             variant="outline"
-            onClick={() => setIsDownloadOpen(true)}
-            disabled={!selectedEvent}
+            onClick={handleDownloadAttendancePDF}
+            disabled={!selectedEvent || isDownloadingRecords}
             className="gap-2"
+            title="Download PDF of displayed student attendance records"
           >
-            <Download className="h-4 w-4" />
-            Download Sheet
+            {isDownloadingRecords ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                Download Sheet
+              </>
+            )}
           </Button>
 
           {/* BUTTON 4: Export CSV */}
@@ -1248,109 +1255,7 @@ const FacultyAttendance = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ================= MODAL 3: DOWNLOAD READY ATTENDANCE SHEET ================= */}
-      <Dialog open={isDownloadOpen} onOpenChange={setIsDownloadOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Download className="w-5 h-5 text-primary" />
-              Download Event Attendance Sheet
-            </DialogTitle>
-            <DialogDescription>
-              Generate a printable blank attendance ledger with Event Name, Date, Sl No, and blank Student Name, Registration Number, and Signature columns.
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="p-3 bg-muted/40 border rounded-lg text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Event:</span>
-                <span className="font-semibold text-foreground">{activeEvent?.name || "Selected Event"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date:</span>
-                <span className="font-semibold text-foreground">{activeEvent?.date || "—"}</span>
-              </div>
-              {activeEvent?.venue && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Venue:</span>
-                  <span className="font-semibold text-foreground">{activeEvent.venue}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Number of Student Rows to Print</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {[25, 30, 50, 100].map((count) => (
-                  <Button
-                    key={count}
-                    type="button"
-                    variant={downloadRows === count ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => setDownloadRows(count)}
-                  >
-                    {count} Rows
-                  </Button>
-                ))}
-              </div>
-
-              <div className="pt-2 flex items-center gap-2">
-                <Label htmlFor="customRows" className="text-xs text-muted-foreground whitespace-nowrap">
-                  Custom count:
-                </Label>
-                <Input
-                  id="customRows"
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={downloadRows}
-                  onChange={(e) => setDownloadRows(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="h-8 text-xs w-24"
-                />
-                <span className="text-xs text-muted-foreground">rows</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs flex items-start gap-2 text-muted-foreground">
-              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <span>
-                The PDF includes official institutional headers, pre-numbered serials, and designated signature boxes formatted for physical event sign-ins.
-              </span>
-            </div>
-          </div>
-
-          <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDownloadOpen(false)}
-              disabled={isDownloadingSheet}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handleDownloadBlankPDF(downloadRows)}
-              disabled={isDownloadingSheet}
-              className="gap-2 bg-gradient-primary"
-            >
-              {isDownloadingSheet ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating PDF...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Download PDF ({downloadRows} Rows)
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

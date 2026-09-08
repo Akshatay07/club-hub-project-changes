@@ -387,6 +387,7 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
   try {
     const { eventId } = req.params;
     const requestedRows = req.query.rows ? parseInt(req.query.rows, 10) : null;
+    const requestedRowsPerPage = req.query.rowsPerPage ? parseInt(req.query.rowsPerPage, 10) : null;
 
     const event = await Event.findById(eventId).populate("clubId", "name");
     if (!event) {
@@ -397,13 +398,17 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
       ? requestedRows
       : (event.maxCapacity && event.maxCapacity > 0 ? Math.min(event.maxCapacity, 100) : 30);
 
-    const doc = new PDFDocument({ margin: 36, size: "A4" });
+    const rowsPerPage = requestedRowsPerPage && !isNaN(requestedRowsPerPage) && requestedRowsPerPage > 0
+      ? Math.min(requestedRowsPerPage, 50)
+      : 25;
+
+    const doc = new PDFDocument({ margin: 36, size: "A4", bufferPages: true });
 
     res.setHeader("Content-Type", "application/pdf");
     const sanitizedName = (event.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=attendance-${sanitizedName}.pdf`
+      `attachment; filename=attendance-${sanitizedName}-blank.pdf`
     );
 
     doc.pipe(res);
@@ -434,7 +439,7 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
       .fontSize(10)
       .font("Helvetica-Bold")
       .fillColor("#2563eb")
-      .text("EVENT ATTENDANCE RECORD SHEET", 40, startY + 18, {
+      .text("EVENT ATTENDANCE RECORD SHEET (BLANK SIGN-IN LEDGER)", 40, startY + 18, {
         align: "center",
         width: 515,
       });
@@ -487,23 +492,25 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
 
     let currentY = infoBoxY + infoBoxHeight + 10;
     const rowHeight = 22;
-    const pageBottomLimit = 760;
+    const pageBottomLimit = 750;
+    let rowsOnCurrentPage = 0;
 
     drawTableHeader(currentY);
     currentY += 22;
 
     for (let i = 0; i < totalRows; i++) {
-      if (currentY + rowHeight > pageBottomLimit) {
+      if (rowsOnCurrentPage >= rowsPerPage || currentY + rowHeight > pageBottomLimit) {
         doc.addPage();
         doc.fontSize(8).font("Helvetica").fillColor("#64748b").text(
-          `Event: ${event.name} | Date: ${event.date || "-"} (Attendance Sheet - Page ${doc.bufferedPageRange().count})`,
+          `Event: ${event.name} | Date: ${event.date || "-"} (Blank Sheet - Page ${doc.bufferedPageRange().count})`,
           40,
-          30,
+          25,
           { width: 515, align: "right" }
         );
-        currentY = 45;
+        currentY = 40;
         drawTableHeader(currentY);
         currentY += 22;
+        rowsOnCurrentPage = 0;
       }
 
       if (i % 2 === 1) {
@@ -523,9 +530,247 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
       );
 
       currentY += rowHeight;
+      rowsOnCurrentPage++;
     }
 
-    if (currentY + 50 > 800) {
+    if (currentY + 55 > 790) {
+      doc.addPage();
+      currentY = 50;
+    } else {
+      currentY += 15;
+    }
+
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#1e293b");
+    doc.text("Faculty Coordinator Signature: ___________________", 40, currentY);
+    doc.text("Club Lead Signature: ___________________", 330, currentY);
+
+    doc.fontSize(8).font("Helvetica").fillColor("#64748b");
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 40, currentY + 20);
+    doc.text("Verified Official Copy", 440, currentY + 20, { align: "right" });
+
+    doc.end();
+  } catch (err) {
+    console.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
+
+// ================= POPULATED ATTENDANCE RECORDS PDF =================
+router.get("/attendance/:eventId/records-pdf", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const event = await Event.findById(eventId).populate("clubId", "name");
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const registrations = await EventRegistration.find({ eventId })
+      .populate("studentId", "name email regNo studentId department")
+      .sort({ createdAt: 1 });
+
+    const totalRegs = registrations.length;
+    const attendedCount = registrations.filter((r) => r.status === "attended").length;
+    const absentCount = registrations.filter((r) => r.status === "absent").length;
+    const registeredCount = registrations.filter((r) => r.status !== "attended" && r.status !== "absent").length;
+
+    const doc = new PDFDocument({ margin: 36, size: "A4", bufferPages: true });
+
+    res.setHeader("Content-Type", "application/pdf");
+    const sanitizedName = (event.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=attendance-${sanitizedName}-records.pdf`
+    );
+
+    doc.pipe(res);
+
+    const logoPath = path.join(process.cwd(), "backend", "logo.png");
+
+    // ================= HEADER =================
+    let startY = 35;
+    if (fs.existsSync(logoPath)) {
+      try {
+        doc.image(logoPath, 40, startY, { width: 42 });
+      } catch (e) {
+        console.log("Logo load error:", e.message);
+      }
+    }
+
+    // Institution Title
+    doc
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .fillColor("#0f172a")
+      .text("DAYANANDA SAGAR COLLEGE OF ARTS, SCIENCE AND COMMERCE", 40, startY + 2, {
+        align: "center",
+        width: 515,
+      });
+
+    doc
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .fillColor("#2563eb")
+      .text("EVENT ATTENDANCE RECORD SHEET", 40, startY + 18, {
+        align: "center",
+        width: 515,
+      });
+
+    // Event Info Box with Summary Stats
+    const infoBoxY = startY + 36;
+    const infoBoxHeight = 52;
+    doc
+      .rect(40, infoBoxY, 515, infoBoxHeight)
+      .fillAndStroke("#f8fafc", "#cbd5e1");
+
+    // Row 1 inside Info Box
+    doc.fontSize(9).font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Event Name:", 50, infoBoxY + 6);
+    doc.font("Helvetica").fillColor("#0f172a").text(event.name || "-", 115, infoBoxY + 6, { width: 190 });
+
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Date:", 320, infoBoxY + 6);
+    doc.font("Helvetica").fillColor("#0f172a").text(event.date || "-", 355, infoBoxY + 6, { width: 190 });
+
+    // Row 2 inside Info Box
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Club:", 50, infoBoxY + 22);
+    doc.font("Helvetica").fillColor("#0f172a").text(event?.clubId?.name || event?.clubName || "-", 115, infoBoxY + 22, { width: 190 });
+
+    doc.font("Helvetica-Bold").fillColor("#334155");
+    doc.text("Venue/Time:", 320, infoBoxY + 22);
+    doc.font("Helvetica").fillColor("#0f172a").text(`${event.venue || "Campus"} | ${event.time || "-"}`, 390, infoBoxY + 22, { width: 155 });
+
+    // Row 3: Stats Summary
+    doc.font("Helvetica-Bold").fillColor("#475569").fontSize(8.5);
+    doc.text(`Total Registered: ${totalRegs}  |  Attended: ${attendedCount}  |  Absent: ${absentCount}${registeredCount > 0 ? `  |  Pending: ${registeredCount}` : ""}`, 50, infoBoxY + 38, { width: 495 });
+
+    // ================= TABLE =================
+    const col = {
+      sl: { x: 40, w: 40 },
+      name: { x: 80, w: 180 },
+      reg: { x: 260, w: 115 },
+      status: { x: 375, w: 80 },
+      sign: { x: 455, w: 100 },
+    };
+
+    const drawTableHeader = (headerY) => {
+      doc.rect(40, headerY, 515, 22).fillAndStroke("#f1f5f9", "#94a3b8");
+      doc.moveTo(col.name.x, headerY).lineTo(col.name.x, headerY + 22).stroke("#94a3b8");
+      doc.moveTo(col.reg.x, headerY).lineTo(col.reg.x, headerY + 22).stroke("#94a3b8");
+      doc.moveTo(col.status.x, headerY).lineTo(col.status.x, headerY + 22).stroke("#94a3b8");
+      doc.moveTo(col.sign.x, headerY).lineTo(col.sign.x, headerY + 22).stroke("#94a3b8");
+
+      doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#0f172a");
+      doc.text("SL NO.", col.sl.x, headerY + 6, { width: col.sl.w, align: "center" });
+      doc.text("STUDENT NAME", col.name.x + 8, headerY + 6, { width: col.name.w - 16, align: "left" });
+      doc.text("REGISTRATION NO.", col.reg.x + 4, headerY + 6, { width: col.reg.w - 8, align: "center" });
+      doc.text("STATUS", col.status.x + 4, headerY + 6, { width: col.status.w - 8, align: "center" });
+      doc.text("SIGNATURE", col.sign.x, headerY + 6, { width: col.sign.w, align: "center" });
+    };
+
+    let currentY = infoBoxY + infoBoxHeight + 10;
+    const rowHeight = 22;
+    const pageBottomLimit = 750;
+
+    drawTableHeader(currentY);
+    currentY += 22;
+
+    if (registrations.length === 0) {
+      doc.rect(40, currentY, 515, 30).stroke("#cbd5e1");
+      doc.fontSize(9).font("Helvetica-Oblique").fillColor("#64748b");
+      doc.text("No student attendance records found for this event.", 40, currentY + 10, {
+        width: 515,
+        align: "center",
+      });
+      currentY += 30;
+    } else {
+      for (let i = 0; i < registrations.length; i++) {
+        if (currentY + rowHeight > pageBottomLimit) {
+          doc.addPage();
+          doc.fontSize(8).font("Helvetica").fillColor("#64748b").text(
+            `Event: ${event.name} | Date: ${event.date || "-"} (Attendance Records - Page ${doc.bufferedPageRange().count})`,
+            40,
+            25,
+            { width: 515, align: "right" }
+          );
+          currentY = 40;
+          drawTableHeader(currentY);
+          currentY += 22;
+        }
+
+        const reg = registrations[i];
+        const student = reg.studentId || {};
+        const studentName = student.name || "—";
+        const studentRegNo = student.regNo || student.studentId || "—";
+        const status = (reg.status || "registered").toUpperCase();
+
+        if (i % 2 === 1) {
+          doc.rect(40, currentY, 515, rowHeight).fill("#f8fafc");
+        }
+
+        doc.rect(40, currentY, 515, rowHeight).stroke("#cbd5e1");
+        doc.moveTo(col.name.x, currentY).lineTo(col.name.x, currentY + rowHeight).stroke("#cbd5e1");
+        doc.moveTo(col.reg.x, currentY).lineTo(col.reg.x, currentY + rowHeight).stroke("#cbd5e1");
+        doc.moveTo(col.status.x, currentY).lineTo(col.status.x, currentY + rowHeight).stroke("#cbd5e1");
+        doc.moveTo(col.sign.x, currentY).lineTo(col.sign.x, currentY + rowHeight).stroke("#cbd5e1");
+
+        // Serial No
+        doc.fontSize(8.5).font("Helvetica").fillColor("#475569").text(
+          String(i + 1),
+          col.sl.x,
+          currentY + 6,
+          { width: col.sl.w, align: "center" }
+        );
+
+        // Student Name
+        doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#0f172a").text(
+          studentName,
+          col.name.x + 8,
+          currentY + 6,
+          { width: col.name.w - 16, ellipsis: true }
+        );
+
+        // Reg No
+        doc.fontSize(8.5).font("Helvetica").fillColor("#334155").text(
+          studentRegNo,
+          col.reg.x + 4,
+          currentY + 6,
+          { width: col.reg.w - 8, align: "center" }
+        );
+
+        // Status Badge
+        if (status === "ATTENDED") {
+          doc.fontSize(8).font("Helvetica-Bold").fillColor("#16a34a").text(
+            "ATTENDED",
+            col.status.x + 4,
+            currentY + 6,
+            { width: col.status.w - 8, align: "center" }
+          );
+        } else if (status === "ABSENT") {
+          doc.fontSize(8).font("Helvetica-Bold").fillColor("#dc2626").text(
+            "ABSENT",
+            col.status.x + 4,
+            currentY + 6,
+            { width: col.status.w - 8, align: "center" }
+          );
+        } else {
+          doc.fontSize(8).font("Helvetica").fillColor("#64748b").text(
+            status,
+            col.status.x + 4,
+            currentY + 6,
+            { width: col.status.w - 8, align: "center" }
+          );
+        }
+
+        // Signature box (empty for manual verification mark)
+        currentY += rowHeight;
+      }
+    }
+
+    if (currentY + 55 > 790) {
       doc.addPage();
       currentY = 50;
     } else {

@@ -10,7 +10,13 @@ const Reports = () => {
   // ✅ LOAD EVENTS
   useEffect(() => {
     api.get("/events")
-      .then(res => setEvents(res.data))
+      .then(res => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setEvents(list);
+        if (list.length > 0 && !selectedId) {
+          setSelectedId(list[0]._id);
+        }
+      })
       .catch(() => setEvents([]));
   }, []);
 
@@ -55,14 +61,15 @@ const Reports = () => {
       <Card>
         <CardContent className="p-4">
           <select
-            className="w-full border p-2 rounded"
+            value={selectedId}
+            className="w-full border border-border bg-card text-foreground p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             onChange={(e) => setSelectedId(e.target.value)}
           >
-            <option>Select Event</option>
+            <option value="" className="bg-popover text-popover-foreground">Select Event</option>
 
             {Array.isArray(events) &&
               events.map((e) => (
-                <option key={e._id} value={e._id}>
+                <option key={e._id} value={e._id} className="bg-popover text-popover-foreground">
                   {e.name}
                 </option>
               ))}
