@@ -45,6 +45,13 @@ import {
   generateInstitutionalReportPdf,
   ReportData,
 } from "@/utils/reportPdfGenerator";
+import {
+  downloadFileFromUrl,
+  downloadBatchFiles,
+  getCleanPhotoFilename,
+  getFullMediaUrl,
+  sanitizeFilename,
+} from "@/utils/fileDownload";
 
 const BACKEND_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:5000/api"
@@ -61,6 +68,79 @@ export default function AdminReports() {
   >("all");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isDownloadingAllPhotos, setIsDownloadingAllPhotos] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Single photo download
+  const handleDownloadSinglePhoto = async (photo: any, index: number, eventName: string) => {
+    if (!photo?.url) return;
+    const filename = getCleanPhotoFilename(
+      eventName,
+      photo.caption,
+      index,
+      photo.originalName || photo.url
+    );
+    toast({
+      title: "Downloading Photo",
+      description: `Saving "${photo.caption || `Photo ${index + 1}`}"...`,
+    });
+    const success = await downloadFileFromUrl(photo.url, filename);
+    if (success) {
+      toast({
+        title: "Download Complete",
+        description: `Saved as "${filename}".`,
+      });
+    } else {
+      toast({
+        title: "Download Failed",
+        description: "Could not download the requested image file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Batch download all photos for a report
+  const handleDownloadAllPhotos = async (eventPhotos: any[], eventName: string) => {
+    if (!eventPhotos || eventPhotos.length === 0) return;
+
+    try {
+      setIsDownloadingAllPhotos(true);
+      setDownloadProgress({ current: 1, total: eventPhotos.length });
+
+      const filesToDownload = eventPhotos.map((photo: any, i: number) => ({
+        url: photo.url || "",
+        filename: getCleanPhotoFilename(
+          eventName,
+          photo.caption,
+          i,
+          photo.originalName || photo.url
+        ),
+      }));
+
+      toast({
+        title: "Starting Batch Download",
+        description: `Downloading ${eventPhotos.length} event photograph(s)...`,
+      });
+
+      const count = await downloadBatchFiles(filesToDownload, (cur, total) => {
+        setDownloadProgress({ current: cur, total });
+      });
+
+      toast({
+        title: "Photos Downloaded",
+        description: `Successfully downloaded ${count} of ${eventPhotos.length} photograph(s).`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Batch Download Error",
+        description: err.message || "Failed to download photos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingAllPhotos(false);
+      setDownloadProgress(null);
+    }
+  };
 
   useEffect(() => {
     loadReports();
@@ -1058,16 +1138,36 @@ export default function AdminReports() {
 
                     {/* Annexure I: Brochure */}
                     <div className="border border-slate-300 rounded p-4">
-                      <div className="font-bold text-xs mb-2">Annexure I: Event Brochure</div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-bold text-xs">Annexure I: Event Brochure</div>
+                        {currentBrochure && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-300"
+                            onClick={() =>
+                              downloadFileFromUrl(
+                                currentBrochure.url!,
+                                sanitizeFilename(
+                                  currentBrochure.originalName ||
+                                    `${currentFormatted.name || "Event"}_Brochure.pdf`
+                                )
+                              )
+                            }
+                          >
+                            <Download className="w-3.5 h-3.5" /> Download Brochure
+                          </Button>
+                        )}
+                      </div>
                       {currentBrochure ? (
                         <div className="flex items-center gap-3">
                           <Badge className="bg-emerald-600">Attached</Badge>
                           <span className="text-xs">{currentBrochure.originalName || "Event Brochure"}</span>
                           <a
-                            href={`${BACKEND_URL}${currentBrochure.url}`}
+                            href={getFullMediaUrl(currentBrochure.url || "")}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-blue-600 underline flex items-center gap-1"
+                            className="text-xs text-blue-600 underline flex items-center gap-1 font-medium"
                           >
                             View Brochure <ExternalLink className="w-3 h-3" />
                           </a>
@@ -1079,21 +1179,89 @@ export default function AdminReports() {
 
                     {/* Annexure II: Photos */}
                     <div className="border border-slate-300 rounded p-4">
-                      <div className="font-bold text-xs mb-2">
-                        Annexure II: Event Photographs ({currentFormatted.eventPhotos?.length || 0} attached)
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                        <div className="font-bold text-xs">
+                          Annexure II: Event Photographs ({currentFormatted.eventPhotos?.length || 0} attached)
+                        </div>
+                        {currentFormatted.eventPhotos && currentFormatted.eventPhotos.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-300 self-start sm:self-auto"
+                            onClick={() =>
+                              handleDownloadAllPhotos(
+                                currentFormatted.eventPhotos!,
+                                currentFormatted.name || "Event"
+                              )
+                            }
+                            disabled={isDownloadingAllPhotos}
+                          >
+                            {isDownloadingAllPhotos ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                Downloading {downloadProgress?.current}/{downloadProgress?.total}...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-3.5 h-3.5" />
+                                Download All ({currentFormatted.eventPhotos.length})
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
+
                       {currentFormatted.eventPhotos && currentFormatted.eventPhotos.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           {currentFormatted.eventPhotos.map((photo, i) => (
-                            <div key={i} className="border rounded overflow-hidden">
-                              <img
-                                src={`${BACKEND_URL}${photo.url}`}
-                                alt={photo.caption || "Event"}
-                                className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(`${BACKEND_URL}${photo.url}`, "_blank")}
-                              />
-                              <div className="p-1 text-[10px] text-center font-medium truncate">
-                                {photo.caption || `Photo ${i + 1}`}
+                            <div
+                              key={photo._id || i}
+                              className="group relative border border-slate-300 rounded-lg overflow-hidden bg-slate-50 flex flex-col justify-between shadow-sm"
+                            >
+                              <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
+                                <img
+                                  src={getFullMediaUrl(photo.url || "")}
+                                  alt={photo.caption || `Photo ${i + 1}`}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                                {/* Quick overlay buttons */}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-8 px-2.5 text-xs gap-1 bg-white/95 hover:bg-white text-slate-900 shadow-md font-medium"
+                                    onClick={() =>
+                                      handleDownloadSinglePhoto(
+                                        photo,
+                                        i,
+                                        currentFormatted.name || "Event"
+                                      )
+                                    }
+                                    title="Download this photograph"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-8 w-8 p-0 bg-white/95 hover:bg-white text-slate-900 shadow-md"
+                                    onClick={() =>
+                                      window.open(getFullMediaUrl(photo.url || ""), "_blank")
+                                    }
+                                    title="View Full Resolution"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="p-2 border-t border-slate-200 bg-white">
+                                <div
+                                  className="text-[11px] font-semibold text-slate-800 truncate"
+                                  title={photo.caption || `Photo ${i + 1}`}
+                                >
+                                  {photo.caption || `Photo ${i + 1}`}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1111,16 +1279,34 @@ export default function AdminReports() {
                       {currentFormatted.signedAttendanceSheets && currentFormatted.signedAttendanceSheets.length > 0 ? (
                         <div className="space-y-1">
                           {currentFormatted.signedAttendanceSheets.map((sheet, i) => (
-                            <div key={i} className="flex items-center justify-between text-xs border-b py-1">
-                              <span>{sheet.originalName || `Signed Sheet ${i + 1}`}</span>
-                              <a
-                                href={`${BACKEND_URL}${sheet.url}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-600 underline flex items-center gap-1"
-                              >
-                                View Sheet <ExternalLink className="w-3 h-3" />
-                              </a>
+                            <div key={i} className="flex items-center justify-between text-xs border-b py-1.5">
+                              <span className="truncate pr-2">{sheet.originalName || `Signed Sheet ${i + 1}`}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <a
+                                  href={getFullMediaUrl(sheet.url || "")}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-600 underline flex items-center gap-1 font-medium"
+                                >
+                                  View Sheet <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs gap-1 text-slate-700 hover:text-slate-900"
+                                  onClick={() =>
+                                    downloadFileFromUrl(
+                                      sheet.url!,
+                                      sanitizeFilename(
+                                        sheet.originalName ||
+                                          `${currentFormatted.name || "Event"}_Attendance_Sheet_${i + 1}.pdf`
+                                      )
+                                    )
+                                  }
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>

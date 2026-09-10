@@ -475,19 +475,39 @@ router.post(
         return res.status(400).json({ message: "No photos uploaded" });
       }
 
-      const captions = Array.isArray(req.body.captions)
-        ? req.body.captions
-        : [req.body.captions || ""];
+      let captions = [];
+      if (req.body.captions) {
+        if (Array.isArray(req.body.captions)) {
+          captions = req.body.captions;
+        } else if (typeof req.body.captions === "string") {
+          try {
+            const parsed = JSON.parse(req.body.captions);
+            if (Array.isArray(parsed)) {
+              captions = parsed;
+            } else {
+              captions = [req.body.captions];
+            }
+          } catch {
+            captions = [req.body.captions];
+          }
+        }
+      }
 
-      const newPhotos = req.files.map((file, idx) => ({
-        fileName: file.filename,
-        originalName: file.originalname,
-        url: `/uploads/${file.filename}`,
-        caption: captions[idx] || req.body.caption || "Event Photograph",
-        size: file.size,
-        uploadedBy: req.user._id,
-        uploadedAt: new Date(),
-      }));
+      const newPhotos = req.files.map((file, idx) => {
+        const rawCaption = (captions[idx] || req.body.caption || "").trim();
+        const fallbackCaption = file.originalname.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        const caption = rawCaption || (fallbackCaption.length > 2 ? fallbackCaption : "Event Photograph");
+
+        return {
+          fileName: file.filename,
+          originalName: file.originalname,
+          url: `/uploads/${file.filename}`,
+          caption: caption,
+          size: file.size,
+          uploadedBy: req.user._id,
+          uploadedAt: new Date(),
+        };
+      });
 
       if (!event.eventPhotos) {
         event.eventPhotos = [];
@@ -500,6 +520,43 @@ router.post(
 
       res.json({
         message: "Photos uploaded successfully",
+        photos: event.eventPhotos,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// ================= UPDATE EVENT PHOTO CAPTION =================
+router.patch(
+  "/:id/photos/:photoId",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const photo = (event.eventPhotos || []).find(
+        (p) => String(p._id) === String(req.params.photoId)
+      );
+
+      if (!photo) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      if (req.body.caption !== undefined) {
+        photo.caption = (req.body.caption || "").trim() || "Event Photograph";
+      }
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Photo caption updated successfully",
         photos: event.eventPhotos,
       });
     } catch (err) {

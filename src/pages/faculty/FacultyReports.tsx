@@ -40,12 +40,30 @@ import {
   ShieldCheck,
   Plus,
   RefreshCw,
+  Pencil,
+  Check,
+  X,
+  FileDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
 import { DSCASC_LOGO_SVG, IIC_LOGO_SVG } from "@/utils/reportLogos";
+import {
+  downloadFileFromUrl,
+  downloadBatchFiles,
+  getCleanPhotoFilename,
+  getFullMediaUrl,
+  sanitizeFilename,
+} from "@/utils/fileDownload";
 
 const BACKEND_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace("/api", "");
+
+interface StagedPhoto {
+  id: string;
+  file: File;
+  previewUrl: string;
+  caption: string;
+}
 
 const FacultyReports = () => {
   const { toast } = useToast();
@@ -62,6 +80,19 @@ const FacultyReports = () => {
   const [uploadingBrochure, setUploadingBrochure] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadingSheet, setUploadingSheet] = useState(false);
+
+  // Photo Staging with Captions Modal
+  const [stagedPhotos, setStagedPhotos] = useState<StagedPhoto[]>([]);
+  const [isStagingModalOpen, setIsStagingModalOpen] = useState(false);
+
+  // Edit Existing Photo Caption State
+  const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null);
+  const [editingCaption, setEditingCaption] = useState<string>("");
+  const [savingCaption, setSavingCaption] = useState<boolean>(false);
+
+  // Download All Photos State
+  const [isDownloadingAllPhotos, setIsDownloadingAllPhotos] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<ReportData>({
@@ -317,15 +348,38 @@ const FacultyReports = () => {
     }
   };
 
-  // Upload Event Photos
-  const handlePhotosUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection for Event Photos -> Opens staging modal for captions
+  const handlePhotosSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !selectedId) return;
+
+    const newStaged: StagedPhoto[] = Array.from(files).map((file, idx) => {
+      const rawName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      const defaultCaption = rawName.length > 2 ? rawName : `Event Photograph`;
+      return {
+        id: `${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 9)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        caption: defaultCaption,
+      };
+    });
+
+    setStagedPhotos((prev) => [...prev, ...newStaged]);
+    setIsStagingModalOpen(true);
+    if (photosInputRef.current) photosInputRef.current.value = "";
+  };
+
+  // Upload staged photos with their custom captions
+  const handleConfirmUploadStagedPhotos = async () => {
+    if (!selectedId || stagedPhotos.length === 0) return;
 
     try {
       setUploadingPhotos(true);
       const form = new FormData();
-      Array.from(files).forEach((f) => form.append("photos", f));
+      stagedPhotos.forEach((item) => {
+        form.append("photos", item.file);
+        form.append("captions", item.caption.trim() || "Event Photograph");
+      });
 
       const res = await api.post(`/events/${selectedId}/photos`, form, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -337,9 +391,14 @@ const FacultyReports = () => {
         photographsAttached: "Attached",
       }));
 
+      // Cleanup object URLs
+      stagedPhotos.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setStagedPhotos([]);
+      setIsStagingModalOpen(false);
+
       toast({
-        title: "Photographs Uploaded",
-        description: `${files.length} photo(s) added to Annexure II gallery.`,
+        title: "Photographs Uploaded with Captions",
+        description: `${stagedPhotos.length} photo(s) added to Annexure II gallery.`,
       });
     } catch (err: any) {
       toast({
@@ -349,7 +408,134 @@ const FacultyReports = () => {
       });
     } finally {
       setUploadingPhotos(false);
-      if (photosInputRef.current) photosInputRef.current.value = "";
+    }
+  };
+
+  // Cancel photo staging
+  const handleCancelStaging = () => {
+    stagedPhotos.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setStagedPhotos([]);
+    setIsStagingModalOpen(false);
+  };
+
+  // Update caption for a staged photo
+  const handleUpdateStagedCaption = (id: string, caption: string) => {
+    setStagedPhotos((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, caption } : item))
+    );
+  };
+
+  // Remove photo from staging batch
+  const handleRemoveStagedPhoto = (id: string) => {
+    setStagedPhotos((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      const updated = prev.filter((p) => p.id !== id);
+      if (updated.length === 0) {
+        setIsStagingModalOpen(false);
+      }
+      return updated;
+    });
+  };
+
+  // Update caption of an existing already-uploaded photo
+  const handleSaveExistingPhotoCaption = async (photoId: string) => {
+    if (!selectedId || !photoId) return;
+    try {
+      setSavingCaption(true);
+      const res = await api.patch(`/events/${selectedId}/photos/${photoId}`, {
+        caption: editingCaption,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        eventPhotos: res.data.photos || prev.eventPhotos,
+      }));
+      setEditingPhotoId(null);
+      setEditingCaption("");
+      toast({
+        title: "Caption Updated",
+        description: "Photograph caption updated successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to Update Caption",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCaption(false);
+    }
+  };
+
+  // Single photo download
+  const handleDownloadSinglePhoto = async (photo: any, index: number) => {
+    if (!photo?.url) return;
+    const filename = getCleanPhotoFilename(
+      formData.name,
+      photo.caption,
+      index,
+      photo.originalName || photo.url
+    );
+    toast({
+      title: "Downloading Photo",
+      description: `Saving "${photo.caption || `Photo ${index + 1}`}"...`,
+    });
+    const success = await downloadFileFromUrl(photo.url, filename);
+    if (success) {
+      toast({
+        title: "Download Complete",
+        description: `Saved as "${filename}".`,
+      });
+    } else {
+      toast({
+        title: "Download Failed",
+        description: "Could not download image file. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Batch download all attached photos
+  const handleDownloadAllPhotos = async () => {
+    const photos = formData.eventPhotos || [];
+    if (photos.length === 0) return;
+
+    try {
+      setIsDownloadingAllPhotos(true);
+      setDownloadProgress({ current: 1, total: photos.length });
+
+      const filesToDownload = photos.map((photo, i) => ({
+        url: photo.url || "",
+        filename: getCleanPhotoFilename(
+          formData.name,
+          photo.caption,
+          i,
+          photo.originalName || photo.url
+        ),
+      }));
+
+      toast({
+        title: "Starting Photo Batch Download",
+        description: `Downloading ${photos.length} event photograph(s)...`,
+      });
+
+      const count = await downloadBatchFiles(filesToDownload, (cur, total) => {
+        setDownloadProgress({ current: cur, total });
+      });
+
+      toast({
+        title: "Photos Downloaded",
+        description: `Successfully downloaded ${count} of ${photos.length} photograph(s).`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Batch Download Error",
+        description: err.message || "Failed to download photos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingAllPhotos(false);
+      setDownloadProgress(null);
     }
   };
 
@@ -1465,13 +1651,30 @@ const FacultyReports = () => {
 
                 {/* Annexure I: Brochure */}
                 <div className="border border-slate-300 rounded p-4">
-                  <div className="font-bold text-xs mb-2">Annexure I: Event Brochure</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-bold text-xs">Annexure I: Event Brochure</div>
+                    {currentBrochure && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-300"
+                        onClick={() =>
+                          downloadFileFromUrl(
+                            currentBrochure.url!,
+                            sanitizeFilename(currentBrochure.originalName || `${formData.name || "Event"}_Brochure.pdf`)
+                          )
+                        }
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download Brochure
+                      </Button>
+                    )}
+                  </div>
                   {currentBrochure ? (
                     <div className="flex items-center gap-3">
                       <Badge className="bg-emerald-600">Attached</Badge>
                       <span className="text-xs">{currentBrochure.originalName || "Event Brochure"}</span>
                       <a
-                        href={`${BACKEND_URL}${currentBrochure.url}`}
+                        href={getFullMediaUrl(currentBrochure.url || "")}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs text-blue-600 underline flex items-center gap-1"
@@ -1486,20 +1689,76 @@ const FacultyReports = () => {
 
                 {/* Annexure II: Photos */}
                 <div className="border border-slate-300 rounded p-4">
-                  <div className="font-bold text-xs mb-2">
-                    Annexure II: Event Photographs ({formData.eventPhotos?.length || 0} attached)
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div className="font-bold text-xs">
+                      Annexure II: Event Photographs ({formData.eventPhotos?.length || 0} attached)
+                    </div>
+                    {formData.eventPhotos && formData.eventPhotos.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-300 self-start sm:self-auto"
+                        onClick={handleDownloadAllPhotos}
+                        disabled={isDownloadingAllPhotos}
+                      >
+                        {isDownloadingAllPhotos ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            Downloading {downloadProgress?.current}/{downloadProgress?.total}...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5" />
+                            Download All ({formData.eventPhotos.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
+
                   {formData.eventPhotos && formData.eventPhotos.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {formData.eventPhotos.map((photo, i) => (
-                        <div key={i} className="border rounded overflow-hidden">
-                          <img
-                            src={`${BACKEND_URL}${photo.url}`}
-                            alt={photo.caption || "Event"}
-                            className="w-full h-24 object-cover"
-                          />
-                          <div className="p-1 text-[10px] text-center font-medium truncate">
-                            {photo.caption || `Photo ${i + 1}`}
+                        <div
+                          key={photo._id || i}
+                          className="group relative border border-slate-300 rounded-lg overflow-hidden bg-slate-50 flex flex-col justify-between shadow-sm"
+                        >
+                          <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
+                            <img
+                              src={getFullMediaUrl(photo.url || "")}
+                              alt={photo.caption || `Photo ${i + 1}`}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {/* Hover Quick Overlay Action Buttons */}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 px-2.5 text-xs gap-1 bg-white/95 hover:bg-white text-slate-900 shadow-md font-medium"
+                                onClick={() => handleDownloadSinglePhoto(photo, i)}
+                                title="Download this photograph"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 w-8 p-0 bg-white/95 hover:bg-white text-slate-900 shadow-md"
+                                onClick={() => window.open(getFullMediaUrl(photo.url || ""), "_blank")}
+                                title="View Full Resolution"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="p-2 border-t border-slate-200 bg-white">
+                            <div
+                              className="text-[11px] font-semibold text-slate-800 truncate"
+                              title={photo.caption || `Photo ${i + 1}`}
+                            >
+                              {photo.caption || `Photo ${i + 1}`}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1517,16 +1776,31 @@ const FacultyReports = () => {
                   {formData.signedAttendanceSheets && formData.signedAttendanceSheets.length > 0 ? (
                     <div className="space-y-1">
                       {formData.signedAttendanceSheets.map((sheet, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs border-b py-1">
-                          <span>{sheet.originalName || `Signed Sheet ${i + 1}`}</span>
-                          <a
-                            href={`${BACKEND_URL}${sheet.url}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-blue-600 underline"
-                          >
-                            View Sheet
-                          </a>
+                        <div key={i} className="flex items-center justify-between text-xs border-b py-1.5">
+                          <span className="truncate pr-2">{sheet.originalName || `Signed Sheet ${i + 1}`}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={getFullMediaUrl(sheet.url || "")}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 underline flex items-center gap-1"
+                            >
+                              View Sheet <ExternalLink className="w-3 h-3" />
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs gap-1 text-slate-700 hover:text-slate-900"
+                              onClick={() =>
+                                downloadFileFromUrl(
+                                  sheet.url!,
+                                  sanitizeFilename(sheet.originalName || `${formData.name || "Event"}_Attendance_Sheet_${i + 1}.pdf`)
+                                )
+                              }
+                            >
+                              <Download className="w-3 h-3" /> Download
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1571,7 +1845,7 @@ const FacultyReports = () => {
               Event Records &amp; Annexures Input (Step 2)
             </DialogTitle>
             <DialogDescription>
-              Attach the required event verification documents (Brochure, Event Photographs, and Signed Attendance Sheet) to complete the official institutional report.
+              Attach the required event verification documents (Brochure, Event Photographs with Captions, and Signed Attendance Sheet) to complete the official institutional report.
             </DialogDescription>
           </DialogHeader>
 
@@ -1606,14 +1880,29 @@ const FacultyReports = () => {
                     <FileCheck className="w-4 h-4 text-emerald-500" />
                     <span className="font-medium truncate">{currentBrochure.originalName || "Brochure"}</span>
                   </div>
-                  <a
-                    href={`${BACKEND_URL}${currentBrochure.url}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary hover:underline flex items-center gap-1 font-medium"
-                  >
-                    View <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={getFullMediaUrl(currentBrochure.url || "")}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1 font-medium"
+                    >
+                      View <ExternalLink className="w-3 h-3" />
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        downloadFileFromUrl(
+                          currentBrochure.url!,
+                          sanitizeFilename(currentBrochure.originalName || "Brochure.pdf")
+                        )
+                      }
+                    >
+                      <Download className="w-3 h-3" /> Download
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -1651,7 +1940,7 @@ const FacultyReports = () => {
                   <div>
                     <h3 className="text-sm font-semibold">2. Event Photographs (Annexure II)</h3>
                     <p className="text-xs text-muted-foreground">
-                      Upload high-resolution event session photographs &amp; glimpses.
+                      Upload high-resolution event session photographs &amp; specify descriptive captions.
                     </p>
                   </div>
                 </div>
@@ -1667,31 +1956,104 @@ const FacultyReports = () => {
                 </Badge>
               </div>
 
-              {/* Photo Thumbnails */}
+              {/* Uploaded Photo Thumbnails with Inline Caption Edit */}
               {formData.eventPhotos && formData.eventPhotos.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {formData.eventPhotos.map((photo, i) => (
-                    <div
-                      key={photo._id || i}
-                      className="group relative border border-border rounded-lg overflow-hidden bg-muted/20"
-                    >
-                      <img
-                        src={`${BACKEND_URL}${photo.url}`}
-                        alt={photo.caption || "Event Photo"}
-                        className="w-full h-24 object-cover"
-                      />
-                      <button
-                        onClick={() => handleDeletePhoto(photo._id!)}
-                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600/90 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Delete photo"
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {formData.eventPhotos.map((photo, i) => (
+                      <div
+                        key={photo._id || i}
+                        className="border border-border rounded-lg overflow-hidden bg-muted/20 flex flex-col justify-between"
                       >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      <div className="p-1 text-[10px] text-center font-medium truncate bg-card/90">
-                        {photo.caption || `Photo ${i + 1}`}
+                        <div className="relative aspect-video bg-muted overflow-hidden group">
+                          <img
+                            src={getFullMediaUrl(photo.url || "")}
+                            alt={photo.caption || "Event Photo"}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleDownloadSinglePhoto(photo, i)}
+                              className="p-1 rounded-full bg-slate-900/80 text-white hover:bg-slate-900"
+                              title="Download photo"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePhoto(photo._id!)}
+                              className="p-1 rounded-full bg-red-600/90 text-white hover:bg-red-700"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-2 bg-card border-t border-border">
+                          {editingPhotoId === photo._id ? (
+                            <div className="space-y-1.5">
+                              <Input
+                                value={editingCaption}
+                                onChange={(e) => setEditingCaption(e.target.value)}
+                                className="h-7 text-xs"
+                                placeholder="Enter photo caption"
+                                autoFocus
+                              />
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-1.5 text-[11px]"
+                                  onClick={() => {
+                                    setEditingPhotoId(null);
+                                    setEditingCaption("");
+                                  }}
+                                  disabled={savingCaption}
+                                >
+                                  <X className="w-3 h-3 mr-0.5" /> Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px]"
+                                  onClick={() => handleSaveExistingPhotoCaption(photo._id!)}
+                                  disabled={savingCaption}
+                                >
+                                  {savingCaption ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Check className="w-3 h-3 mr-0.5" /> Save
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className="text-[11px] font-medium text-foreground truncate flex-1"
+                                title={photo.caption || `Photo ${i + 1}`}
+                              >
+                                {photo.caption || `Photo ${i + 1}`}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
+                                onClick={() => {
+                                  setEditingPhotoId(photo._id!);
+                                  setEditingCaption(photo.caption || "");
+                                }}
+                                title="Edit Caption"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1701,7 +2063,7 @@ const FacultyReports = () => {
                 multiple
                 accept="image/*"
                 className="hidden"
-                onChange={handlePhotosUpload}
+                onChange={handlePhotosSelected}
               />
 
               <Button
@@ -1711,12 +2073,8 @@ const FacultyReports = () => {
                 disabled={uploadingPhotos}
                 className="w-full border-dashed"
               >
-                {uploadingPhotos ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Plus className="w-4 h-4 mr-2" />
-                )}
-                Add Event Photos (Multi-Upload)
+                <Plus className="w-4 h-4 mr-2 text-primary" />
+                Add Event Photos &amp; Set Captions
               </Button>
             </div>
 
@@ -1755,14 +2113,29 @@ const FacultyReports = () => {
                         <FileCheck className="w-4 h-4 text-emerald-500" />
                         <span className="font-medium truncate">{sheet.originalName || "Signed Sheet"}</span>
                       </div>
-                      <a
-                        href={`${BACKEND_URL}${sheet.url}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline flex items-center gap-1 font-medium"
-                      >
-                        View <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={getFullMediaUrl(sheet.url || "")}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline flex items-center gap-1 font-medium"
+                        >
+                          View <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() =>
+                            downloadFileFromUrl(
+                              sheet.url!,
+                              sanitizeFilename(sheet.originalName || `Attendance_Sheet_${i + 1}.pdf`)
+                            )
+                          }
+                        >
+                          <Download className="w-3 h-3" /> Download
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1808,6 +2181,109 @@ const FacultyReports = () => {
               className="bg-primary text-primary-foreground"
             >
               Preview &amp; Generate Report →
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PHOTO STAGING WITH CAPTIONS DIALOG */}
+      <Dialog open={isStagingModalOpen} onOpenChange={(open) => !open && handleCancelStaging()}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <ImageIcon className="w-5 h-5 text-primary" />
+              Add Event Photographs with Captions
+            </DialogTitle>
+            <DialogDescription>
+              Enter descriptive captions for each selected photograph before attaching them to Annexure II.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-lg border">
+              <span>{stagedPhotos.length} photo(s) selected for upload</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => photosInputRef.current?.click()}
+                className="h-7 text-xs gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add More Photos
+              </Button>
+            </div>
+
+            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+              {stagedPhotos.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border border-border bg-card shadow-sm"
+                >
+                  <div className="relative w-28 h-20 rounded-md overflow-hidden bg-muted shrink-0 border">
+                    <img
+                      src={item.previewUrl}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[10px] text-white text-center py-0.5 font-medium">
+                      Photo {index + 1}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">
+                        Photo Caption *
+                      </Label>
+                      <span className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={item.file.name}>
+                        {item.file.name} ({(item.file.size / 1024).toFixed(0)} KB)
+                      </span>
+                    </div>
+                    <Input
+                      value={item.caption}
+                      onChange={(e) => handleUpdateStagedCaption(item.id, e.target.value)}
+                      placeholder="e.g. Workshop Inauguration / Hands-on Lab Session / Keynote Address"
+                      className="text-sm font-medium"
+                    />
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveStagedPhoto(item.id)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0 shrink-0 self-end sm:self-center"
+                    title="Remove this photo"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-3 border-t">
+            <Button
+              variant="outline"
+              onClick={handleCancelStaging}
+              disabled={uploadingPhotos}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUploadStagedPhotos}
+              disabled={uploadingPhotos || stagedPhotos.length === 0}
+              className="bg-primary text-primary-foreground gap-1.5"
+            >
+              {uploadingPhotos ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Uploading {stagedPhotos.length} Photo(s)...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Upload {stagedPhotos.length} Photo(s) with Captions
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
