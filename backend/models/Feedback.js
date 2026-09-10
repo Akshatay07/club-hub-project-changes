@@ -21,7 +21,7 @@ const feedbackSchema = new mongoose.Schema(
   targetType: {
     type: String,
     enum: ["club", "event"],
-    required: true,
+    default: "club",
   },
 
   rating: {
