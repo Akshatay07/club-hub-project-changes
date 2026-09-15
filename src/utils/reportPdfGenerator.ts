@@ -12,6 +12,8 @@ export interface ReportData {
   time?: string;
   venue?: string;
   location?: string;
+  approvalStage?: string;
+  status?: string;
 
   resourcePerson1?: {
     name?: string;
@@ -610,22 +612,58 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   doc.text(linesPage2, marginLeft + col1W + col2W + 5, curY + 12);
   curY += rowH2;
 
-  // 5 Signatories Block (Exact position below table matching image 2)
+  // 5 Signatories Block with Digital Signatures
   const signatories = [
-    "Event Coordinators",
-    "HOD-BCA",
-    "Vice-Principal",
-    "IQAC Coordinator",
-    "Principal",
+    { title: "Event Coordinators", stageNum: 1 },
+    { title: "HOD-BCA", stageNum: 2 },
+    { title: "Vice-Principal", stageNum: 3 },
+    { title: "IQAC Coordinator", stageNum: 4 },
+    { title: "Principal", stageNum: 5 },
   ];
 
-  const sigY = curY + 55;
+  const currentStageStr = report.approvalStage || "Event Coordinators";
+  const getStageIndexNum = (st: string) => {
+    if (st === "Approved") return 6;
+    if (st === "Rejected") return -1;
+    const idx = signatories.findIndex((s) => s.title === st);
+    return idx >= 0 ? idx + 1 : 1;
+  };
+
+  const activeStageIdx = getStageIndexNum(currentStageStr);
+  const sigY = curY + 60;
   const sigSpacing = contentWidth / 5;
-  setFont("bold", 9.5);
 
   signatories.forEach((sig, index) => {
     const x = marginLeft + index * sigSpacing + sigSpacing / 2;
-    doc.text(sig, x, sigY, { align: "center" });
+    const isSigned = activeStageIdx > sig.stageNum || currentStageStr === "Approved";
+
+    if (isSigned) {
+      // Draw Digital Signature Stamp Badge
+      doc.setDrawColor(16, 185, 129);
+      doc.setFillColor(236, 253, 245);
+      doc.roundedRect(x - 42, sigY - 32, 84, 22, 3, 3, "FD");
+
+      setFont("bold", 7);
+      doc.setTextColor(5, 150, 105);
+      doc.text("✓ DIGITALLY SIGNED", x, sigY - 20, { align: "center" });
+
+      setFont("normal", 5.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`VERIFIED ID: STG-${sig.stageNum}09`, x, sigY - 13, { align: "center" });
+      doc.setTextColor(0, 0, 0);
+    } else {
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x - 38, sigY - 28, 76, 18, 3, 3, "FD");
+
+      setFont("italic", 6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text("⏳ Pending Stage", x, sigY - 16, { align: "center" });
+      doc.setTextColor(0, 0, 0);
+    }
+
+    setFont("bold", 9);
+    doc.text(sig.title, x, sigY + 8, { align: "center" });
   });
 
   // ================= ANNEXURES WITH EMBEDDED IMAGES / PDF MERGE =================
@@ -823,6 +861,13 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
+    },
+    getBlobUrl: () => {
+      const blob = new Blob([finalMergedBytes], { type: "application/pdf" });
+      return URL.createObjectURL(blob);
+    },
+    getBlob: () => {
+      return new Blob([finalMergedBytes], { type: "application/pdf" });
     },
   };
 }

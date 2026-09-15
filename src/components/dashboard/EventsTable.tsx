@@ -28,7 +28,13 @@ import {
   AlertCircle,
   Pencil,
   Trash2,
+  Loader2,
+  FileCheck,
+  ShieldCheck,
+  Download,
 } from "lucide-react";
+import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
+import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "@/utils/reportLogos";
 
 const PAGE_SIZE = 5;
 
@@ -64,6 +70,158 @@ export const getEffectiveStatus = (e: any): "approved" | "pending" | "rejected" 
   return e.status || "pending";
 };
 
+export const getStageIndex = (stage: string) => {
+  if (stage === "Approved") return 6;
+  if (stage === "Rejected") return -1;
+  const idx = STAGE_STEPS.findIndex((s) => s.id === stage);
+  return idx >= 0 ? idx + 1 : 1;
+};
+
+/* ================= REPORT PREVIEW DIALOG CONTENT ================= */
+const ReportPreviewContent = ({
+  previewEvent,
+  setPreviewEvent,
+  downloadingReportId,
+  handleDownloadReport,
+  handleStageChange,
+  isFaculty,
+  getStageBadgeStyle,
+  formatReportData,
+}: any) => {
+  if (!previewEvent) return null;
+
+  const reportData = formatReportData(previewEvent);
+  const currentStage = getEffectiveStage(previewEvent);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isCancelled = false;
+    setPdfLoading(true);
+    generateInstitutionalReportPdf(reportData)
+      .then((generator) => {
+        if (!isCancelled) {
+          const url = generator.getBlobUrl();
+          setPdfBlobUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+          setPdfLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to generate PDF Blob URL:", err);
+        if (!isCancelled) setPdfLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [previewEvent?.approvalStage, previewEvent?._id]);
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="text-lg font-bold flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            <span>24-Point IQAC Institutional Report PDF Preview</span>
+          </div>
+
+          <Button
+            size="sm"
+            disabled={downloadingReportId === previewEvent._id}
+            onClick={() => handleDownloadReport(previewEvent)}
+            className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground shadow-sm"
+          >
+            {downloadingReportId === previewEvent._id ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            <span>Download PDF</span>
+          </Button>
+        </DialogTitle>
+        <DialogDescription className="text-xs">
+          Previewing full multi-page PDF document for <strong>{previewEvent.name}</strong> (includes 24-point ledger, digital signature stamps, brochure & attendance sheets).
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-4 py-2 text-xs">
+        {/* INTERACTIVE STAGE MARKER BAR */}
+        <div className="p-3 bg-muted/40 border rounded-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-muted-foreground uppercase tracking-wider text-[11px]">
+              Mark Approval Stage to Stamp Digital Signatures:
+            </span>
+            <Badge className={getStageBadgeStyle(currentStage)}>
+              Stage: {currentStage}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 pt-1">
+            {["Event Coordinators", "HOD-BCA", "Vice-Principal", "IQAC Coordinator", "Principal", "Approved"].map((st, idx) => {
+              const currentIdx = getStageIndex(currentStage);
+              const isPassed = currentIdx > (idx + 1) || currentStage === "Approved";
+              const isCurrent = currentStage === st;
+
+              return (
+                <button
+                  key={st}
+                  type="button"
+                  disabled={isFaculty}
+                  onClick={async () => {
+                    if (isFaculty) return;
+                    await handleStageChange(previewEvent._id, st);
+                    setPreviewEvent((prev: any) => ({
+                      ...prev,
+                      approvalStage: st,
+                      status: st === "Approved" ? "approved" : "pending",
+                    }));
+                  }}
+                  className={`p-2 rounded-lg border text-center transition-all ${
+                    isFaculty ? "cursor-default" : "cursor-pointer"
+                  } ${
+                    isCurrent
+                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-sm"
+                      : isPassed
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 font-medium"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                  title={isFaculty ? `Current Stage: ${st}` : `Click to mark stage as ${st}`}
+                >
+                  <span className="block text-[11px] leading-tight">
+                    {st === "Approved" ? "✓ Approved" : `${idx + 1}. ${st}`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* FULL MULTI-PAGE PDF EMBEDDED VIEWER */}
+        <div className="border rounded-xl p-1 bg-muted/20">
+          {pdfLoading ? (
+            <div className="h-[750px] flex flex-col items-center justify-center gap-2 bg-background rounded-lg border">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="text-xs text-muted-foreground font-medium">
+                Rendering full multi-page PDF document with brochure & attendance sheets...
+              </span>
+            </div>
+          ) : pdfBlobUrl ? (
+            <iframe
+              src={pdfBlobUrl}
+              className="w-full h-[750px] border-0 rounded-lg bg-white shadow-inner"
+              title="Official Institutional PDF Report Preview"
+            />
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+};
+
+/* ================= MAIN EVENTS TABLE COMPONENT ================= */
 interface EventsTableProps {
   facultyView?: boolean;
 }
@@ -88,6 +246,133 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsEvent, setDetailsEvent] = useState<any>(null);
 
+  // Report Download & Preview State
+  const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewEvent, setPreviewEvent] = useState<any>(null);
+
+  // Format event data to 24-point institutional report structure
+  const formatReportData = (ev: any): ReportData => {
+    if (!ev) return { name: "" };
+    return {
+      _id: ev._id,
+      name: ev.name || "",
+      type: ev.type || "Faculty Development Program",
+      department: ev.department || "BCA",
+      approvalStage: getEffectiveStage(ev),
+      status: getEffectiveStatus(ev),
+      reportDate:
+        ev.reportDate ||
+        (ev.updatedAt
+          ? new Date(ev.updatedAt).toLocaleDateString("en-GB")
+          : new Date().toLocaleDateString("en-GB")),
+      date: ev.date || "",
+      time: ev.time || "2:00 PM to 4:00 PM",
+      venue: ev.venue || ev.location || "Online Google meet",
+      resourcePerson1: {
+        name:
+          ev.resourcePerson1?.name ||
+          ev.resourcePerson?.name ||
+          "Nirmal Gaud",
+        designation:
+          ev.resourcePerson1?.designation || "Founder & CEO",
+        organization:
+          ev.resourcePerson1?.organization ||
+          ev.resourcePerson?.organization ||
+          "Cognitia Research - ThinkAI",
+      },
+      resourcePerson1Topics:
+        ev.resourcePerson1Topics ||
+        ev.topicsCovered ||
+        "Mathematics behind AI/ML model with tips and tools to write Research paper",
+      resourcePerson2: {
+        name: ev.resourcePerson2?.name || "NA",
+        designation: ev.resourcePerson2?.designation || "NA",
+        organization: ev.resourcePerson2?.organization || "NA",
+      },
+      resourcePerson2Topics: ev.resourcePerson2Topics || "NA",
+      facultyParticipants: {
+        internal: ev.facultyParticipants?.internal ?? 22,
+        external: ev.facultyParticipants?.external ?? 0,
+      },
+      studentParticipants: {
+        internal: ev.studentParticipants?.internal ?? 0,
+        external: ev.studentParticipants?.external ?? 0,
+      },
+      facultyCoordinator:
+        ev.facultyCoordinator || ev.facultyName || "Lakshmi S",
+      facultyCoordinatorDetails:
+        ev.facultyCoordinatorDetails ||
+        `Name: ${ev.facultyCoordinator || ev.facultyName || "Lakshmi S"}\nDesignation : Assistant Professor\nDepartment: Department of Computer Applications, DSCASC.`,
+      studentCoordinator:
+        ev.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi",
+      studentCoordinatorDetails:
+        ev.studentCoordinatorDetails ||
+        `${ev.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi"}\nP03CJ24S126119 III sem MCA`,
+      totalExpenditure:
+        ev.totalExpenditure ||
+        (ev.budgetSpent ? `${ev.budgetSpent}/-` : "20,000/-"),
+      budgetSpent: ev.budgetSpent || 0,
+      sponsors: ev.sponsors || "NA",
+      agenda:
+        ev.agenda ||
+        "Training on AI/ML model analysis and research paper writing",
+      websiteReportLink: ev.websiteReportLink || "No",
+      socialMediaLinks: ev.socialMediaLinks || "---",
+      newspaperReport: ev.newspaperReport || "No",
+      certificatesPrinted: ev.certificatesPrinted || "No",
+      feedbackCollected: ev.feedbackCollected || "Yes",
+      attendanceAttached: ev.attendanceAttached ? "Yes" : "Yes",
+      photographsAttached:
+        ev.eventPhotos && ev.eventPhotos.length > 0 ? "Attached" : "Attached",
+      summary:
+        ev.summary ||
+        `Official institutional report for ${ev.name} conducted on ${ev.date} by ${ev.clubName || "Club"}.`,
+      attachments: ev.attachments || [],
+      eventPhotos: ev.eventPhotos || [],
+      signedAttendanceSheets: ev.signedAttendanceSheets || [],
+    };
+  };
+
+  const handleDownloadReport = async (ev: any) => {
+    try {
+      setDownloadingReportId(ev._id);
+      const reportData = formatReportData(ev);
+      const doc = await generateInstitutionalReportPdf(reportData);
+      const sanitizedName = (reportData.name || "Event_Report").replace(
+        /[^a-zA-Z0-9_-]/g,
+        "_"
+      );
+      doc.save(`DSCASC_IQAC_Report_${sanitizedName}.pdf`);
+      toast({
+        title: "Report PDF Generated",
+        description: `Official institutional 24-point report downloaded for "${reportData.name}".`,
+      });
+    } catch (err: any) {
+      console.error("Failed to generate report PDF:", err);
+      toast({
+        title: "Report Generation Failed",
+        description: err.message || "Could not generate report PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingReportId(null);
+    }
+  };
+
+  const handleOpenReportPreview = async (e: any) => {
+    try {
+      setPreviewEvent(e);
+      setPreviewModalOpen(true);
+      const res = await api.get(`/events/${e._id}`);
+      if (res.data) {
+        setPreviewEvent((prev: any) => ({ ...prev, ...res.data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch event details:", err);
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
 
@@ -106,11 +391,15 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       setDetailsEvent((prev: any) =>
         prev && prev._id === event._id ? { ...prev, ...event } : prev
       );
+      setPreviewEvent((prev: any) =>
+        prev && prev._id === event._id ? { ...prev, ...event } : prev
+      );
     });
 
     socket.on("eventDeleted", (id) => {
       setData((prev) => prev.filter((e) => e._id !== id));
       setDetailsEvent((prev: any) => (prev && prev._id === id ? null : prev));
+      setPreviewEvent((prev: any) => (prev && prev._id === id ? null : prev));
     });
 
     return () => {
@@ -139,6 +428,7 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       await api.delete(`/events/${id}`);
       setData((prev) => prev.filter((e) => e._id !== id));
       if (detailsEvent?._id === id) setDetailsOpen(false);
+      if (previewEvent?._id === id) setPreviewModalOpen(false);
       toast({ title: "Event deleted" });
     } catch (err: any) {
       toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
@@ -147,12 +437,15 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
 
   const handleStatusChange = async (id: string, newStatus: "approved" | "rejected") => {
     try {
-      const res = await api.put(`/admin/events/${id}/status`, { status: newStatus });
+      await api.put(`/admin/events/${id}/status`, { status: newStatus });
       const newStage = newStatus === "approved" ? "Approved" : "Rejected";
       setData((prev) =>
         prev.map((e) => (e._id === id ? { ...e, status: newStatus, approvalStage: newStage } : e))
       );
       setDetailsEvent((prev: any) =>
+        prev && prev._id === id ? { ...prev, status: newStatus, approvalStage: newStage } : prev
+      );
+      setPreviewEvent((prev: any) =>
         prev && prev._id === id ? { ...prev, status: newStatus, approvalStage: newStage } : prev
       );
       toast({
@@ -183,6 +476,12 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       );
 
       setDetailsEvent((prev: any) =>
+        prev && prev._id === id
+          ? { ...prev, approvalStage: newStage, status: updatedStatus }
+          : prev
+      );
+
+      setPreviewEvent((prev: any) =>
         prev && prev._id === id
           ? { ...prev, approvalStage: newStage, status: updatedStatus }
           : prev
@@ -329,13 +628,6 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
     }
   };
 
-  const getStageIndex = (stage: string) => {
-    if (stage === "Approved") return 6;
-    if (stage === "Rejected") return -1;
-    const idx = STAGE_STEPS.findIndex((s) => s.id === stage);
-    return idx >= 0 ? idx + 1 : 1;
-  };
-
   return (
     <div className="p-4 space-y-4 border rounded-xl bg-card shadow-sm">
       {/* TOP FILTER BAR */}
@@ -427,7 +719,7 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
               <th className="py-3 px-3">Date</th>
               <th className="py-3 px-3 text-center">Status</th>
               <th className="py-3 px-3 text-center">Approval Stage</th>
-              <th className="py-3 px-3 text-center">Brochure</th>
+              <th className="py-3 px-3 text-center">Reports</th>
               <th className="py-3 px-3 text-right">Actions</th>
             </tr>
           </thead>
@@ -438,9 +730,6 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
                 const currentStage = getEffectiveStage(e);
                 const currentStatus = getEffectiveStatus(e);
                 const stepNum = getStageStep(currentStage);
-                const brochureAttachment = e.attachments?.find(
-                  (f: any) => f.label === "brochure" && !f.isDeleted
-                );
 
                 return (
                   <tr key={e._id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
@@ -533,30 +822,19 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
                       </div>
                     </td>
 
-                    {/* BROCHURE COLUMN */}
+                    {/* REPORTS COLUMN */}
                     <td className="py-3 px-3 text-center">
-                      {brochureAttachment ? (
-                        <a
-                          href={`http://localhost:5000${brochureAttachment.url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-primary hover:bg-primary/10 border border-primary/30 transition-colors"
-                          title="Open uploaded brochure PDF"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Brochure
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDetails(e)}
-                          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-muted/50 transition-colors"
-                          title="View event details"
-                        >
-                          <Eye className="w-3 h-3" />
-                          View Info
-                        </button>
-                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenReportPreview(e)}
+                        className="h-7 px-2.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10 gap-1.5 transition-colors shadow-sm"
+                        title="Click to preview 24-point IQAC report & digital signatures"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-primary" />
+                        <span>Preview Report</span>
+                      </Button>
                     </td>
 
                     {/* ACTIONS COLUMN */}
@@ -755,98 +1033,116 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
                     )}
                   </div>
 
-              {/* EVENT SPECIFICATIONS GRID */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-primary" /> Date
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.date}</span>
-                </div>
+                  {/* EVENT SPECIFICATIONS GRID */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-primary" /> Date
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.date}</span>
+                    </div>
 
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-primary" /> Time
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.time || "—"}</span>
-                </div>
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-primary" /> Time
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.time || "—"}</span>
+                    </div>
 
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-primary" /> Venue
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.venue || "Campus"}</span>
-                </div>
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-primary" /> Venue
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.venue || "Campus"}</span>
+                    </div>
 
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5 text-primary" /> Club
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.clubName || "—"}</span>
-                </div>
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-primary" /> Club
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.clubName || "—"}</span>
+                    </div>
 
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <UserCheck className="w-3.5 h-3.5 text-primary" /> Faculty Coordinator
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.facultyName || "—"}</span>
-                </div>
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5 text-primary" /> Faculty Coordinator
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.facultyName || "—"}</span>
+                    </div>
 
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-primary" /> Max Capacity
-                  </span>
-                  <span className="font-semibold text-foreground text-sm">{detailsEvent.maxCapacity || 100} students</span>
-                </div>
-              </div>
-
-              {/* DESCRIPTION */}
-              {detailsEvent.description && (
-                <div className="space-y-1 text-xs">
-                  <h5 className="font-bold text-muted-foreground uppercase tracking-wider">Event Description</h5>
-                  <p className="p-3 bg-muted/20 border rounded-lg text-foreground whitespace-pre-wrap">
-                    {detailsEvent.description}
-                  </p>
-                </div>
-              )}
-
-              {/* ATTACHMENTS & BROCHURE */}
-              <div className="space-y-2 text-xs">
-                <h5 className="font-bold text-muted-foreground uppercase tracking-wider">Attached Documents & Brochure</h5>
-                {detailsEvent.attachments && detailsEvent.attachments.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {detailsEvent.attachments
-                      .filter((f: any) => !f.isDeleted)
-                      .map((file: any) => (
-                        <a
-                          key={file._id}
-                          href={`http://localhost:5000${file.url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors group"
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate font-medium capitalize">
-                              {file.label || file.originalName || "Document"}
-                            </span>
-                          </div>
-                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary" />
-                        </a>
-                      ))}
+                    <div className="p-3 bg-muted/30 border rounded-lg space-y-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-primary" /> Max Capacity
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{detailsEvent.maxCapacity || 100} students</span>
+                    </div>
                   </div>
-                ) : (
-                  <p className="p-3 bg-muted/20 border rounded-lg text-muted-foreground italic">
-                    No documents or brochure attached yet.
-                  </p>
-                )}
-              </div>
-            </div>
-          </>
-        );
-      })()}
-    </DialogContent>
-  </Dialog>
+
+                  {/* DESCRIPTION */}
+                  {detailsEvent.description && (
+                    <div className="space-y-1 text-xs">
+                      <h5 className="font-bold text-muted-foreground uppercase tracking-wider">Event Description</h5>
+                      <p className="p-3 bg-muted/20 border rounded-lg text-foreground whitespace-pre-wrap">
+                        {detailsEvent.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ATTACHMENTS & EVENT REPORTS */}
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-bold text-muted-foreground uppercase tracking-wider">Event Reports & Documents</h5>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={downloadingReportId === detailsEvent._id}
+                        onClick={() => handleDownloadReport(detailsEvent)}
+                        className="h-7 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10 gap-1.5"
+                      >
+                        {downloadingReportId === detailsEvent._id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5" />
+                        )}
+                        <span>Download Official Report PDF</span>
+                      </Button>
+                    </div>
+
+                    {detailsEvent.attachments && detailsEvent.attachments.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {detailsEvent.attachments
+                          .filter((f: any) => !f.isDeleted)
+                          .map((file: any) => (
+                            <a
+                              key={file._id}
+                              href={`http://localhost:5000${file.url}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/30 hover:bg-muted/50 text-foreground transition-colors group"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <FileText className="w-4 h-4 text-primary shrink-0" />
+                                <span className="truncate font-medium capitalize">
+                                  {file.label || file.originalName || "Document"}
+                                </span>
+                              </div>
+                              <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary" />
+                            </a>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="p-3 bg-muted/20 border rounded-lg text-muted-foreground italic">
+                        No extra document files attached. You can click above to download the generated 24-point IQAC report PDF.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ================= MODAL 2: EDIT EVENT ================= */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -895,6 +1191,24 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL 3: 24-POINT REPORT PREVIEW & DIGITAL SIGNATURES ================= */}
+      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {previewEvent ? (
+            <ReportPreviewContent
+              previewEvent={previewEvent}
+              setPreviewEvent={setPreviewEvent}
+              downloadingReportId={downloadingReportId}
+              handleDownloadReport={handleDownloadReport}
+              handleStageChange={handleStageChange}
+              isFaculty={isFaculty}
+              getStageBadgeStyle={getStageBadgeStyle}
+              formatReportData={formatReportData}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
