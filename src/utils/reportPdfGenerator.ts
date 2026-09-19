@@ -1,6 +1,298 @@
 import { jsPDF } from "jspdf";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "./reportLogos";
+import { signaturesConfig, getProcessedSignatureBase64 } from "./signatureLoader";
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const clean = base64.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+  const binaryString = atob(clean);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function drawHeaderOnPdfPage(
+  page: any,
+  title: string,
+  dscascLogoImg: any,
+  iicLogoImg: any,
+  fontBold: any,
+  fontReg: any
+) {
+  const { width, height } = page.getSize();
+  const headerHeight = 65;
+  const topY = height;
+
+  // Solid white background bar for header
+  page.drawRectangle({
+    x: 0,
+    y: topY - headerHeight,
+    width: width,
+    height: headerHeight,
+    color: rgb(1, 1, 1),
+  });
+
+  // DSCASC logo (Left)
+  if (dscascLogoImg) {
+    page.drawImage(dscascLogoImg, {
+      x: 35,
+      y: topY - 55,
+      width: 45,
+      height: 45,
+    });
+  }
+
+  // IIC logo (Right)
+  if (iicLogoImg) {
+    page.drawImage(iicLogoImg, {
+      x: width - 115,
+      y: topY - 52,
+      width: 75,
+      height: 35,
+    });
+  }
+
+  // Centered Header Titles
+  const titleLine1 = "Dayananda Sagar College of Arts, Science, and Commerce";
+  const titleLine2 = "Internal Quality Assurance Cell";
+
+  const size1 = 10.5;
+  const size2 = 9;
+  const size3 = 9.5;
+
+  const width1 = fontBold.widthOfTextAtSize(titleLine1, size1);
+  const width2 = fontBold.widthOfTextAtSize(titleLine2, size2);
+
+  let displayTitle = title;
+  const maxTitleW = width - 240;
+  while (displayTitle.length > 5 && fontBold.widthOfTextAtSize(displayTitle, size3) > maxTitleW) {
+    displayTitle = displayTitle.slice(0, -4) + "...";
+  }
+  const width3 = fontBold.widthOfTextAtSize(displayTitle, size3);
+
+  page.drawText(titleLine1, {
+    x: (width - width1) / 2,
+    y: topY - 20,
+    size: size1,
+    font: fontBold,
+    color: rgb(0.06, 0.09, 0.16),
+  });
+
+  page.drawText(titleLine2, {
+    x: (width - width2) / 2,
+    y: topY - 34,
+    size: size2,
+    font: fontBold,
+    color: rgb(0.12, 0.16, 0.23),
+  });
+
+  page.drawText(displayTitle, {
+    x: (width - width3) / 2,
+    y: topY - 50,
+    size: size3,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+  // Divider line
+  page.drawLine({
+    start: { x: 35, y: topY - 58 },
+    end: { x: width - 35, y: topY - 58 },
+    thickness: 0.8,
+    color: rgb(0.8, 0.84, 0.88),
+  });
+}
+
+async function addImageAnnexurePage(
+  pdfDoc: PDFDocument,
+  imgUrl: string,
+  title: string,
+  dscascLogoImg: any,
+  iicLogoImg: any,
+  fontBold: any,
+  fontReg: any
+) {
+  try {
+    const buffer = await fetchArrayBuffer(imgUrl);
+    if (!buffer) return;
+
+    let embeddedImg;
+    const isPng = imgUrl.toLowerCase().includes(".png");
+    if (isPng) {
+      embeddedImg = await pdfDoc.embedPng(buffer);
+    } else {
+      try {
+        embeddedImg = await pdfDoc.embedJpg(buffer);
+      } catch {
+        embeddedImg = await pdfDoc.embedPng(buffer);
+      }
+    }
+
+    const page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
+
+    drawHeaderOnPdfPage(page, title, dscascLogoImg, iicLogoImg, fontBold, fontReg);
+
+    const topMargin = 75;
+    const bottomMargin = 40;
+    const sideMargin = 35;
+
+    const maxW = width - sideMargin * 2;
+    const maxH = height - topMargin - bottomMargin;
+
+    const scaled = embeddedImg.scaleToFit(maxW, maxH);
+
+    const imgX = (width - scaled.width) / 2;
+    const imgY = bottomMargin + (maxH - scaled.height) / 2;
+
+    page.drawImage(embeddedImg, {
+      x: imgX,
+      y: imgY,
+      width: scaled.width,
+      height: scaled.height,
+    });
+  } catch (err) {
+    console.warn("Failed to add image annexure page:", err);
+  }
+}
+
+async function addPdfAnnexurePages(
+  finalPdfDoc: PDFDocument,
+  pdfUrl: string,
+  title: string,
+  dscascLogoImg: any,
+  iicLogoImg: any,
+  fontBold: any,
+  fontReg: any
+) {
+  try {
+    const buffer = await fetchArrayBuffer(pdfUrl);
+    if (!buffer) return;
+
+    const sourcePdfDoc = await PDFDocument.load(buffer);
+    const copiedPages = await finalPdfDoc.copyPages(
+      sourcePdfDoc,
+      sourcePdfDoc.getPageIndices()
+    );
+
+    for (let pIdx = 0; pIdx < copiedPages.length; pIdx++) {
+      const p = copiedPages[pIdx];
+      finalPdfDoc.addPage(p);
+
+      const pageTitle = copiedPages.length > 1 ? `${title} (Page ${pIdx + 1})` : title;
+      drawHeaderOnPdfPage(
+        p,
+        pageTitle,
+        dscascLogoImg,
+        iicLogoImg,
+        fontBold,
+        fontReg
+      );
+    }
+  } catch (err) {
+    console.warn(`Failed to merge PDF for ${title}:`, err);
+  }
+}
+
+async function addPhotosAnnexurePage(
+  pdfDoc: PDFDocument,
+  photos: Array<{ url?: string; caption?: string }>,
+  dscascLogoImg: any,
+  iicLogoImg: any,
+  fontBold: any,
+  fontReg: any,
+  backendBase: string
+) {
+  if (!photos || photos.length === 0) return;
+
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+
+  drawHeaderOnPdfPage(
+    page,
+    "ANNEXURE II: EVENT PHOTOGRAPHS / GLIMPSES",
+    dscascLogoImg,
+    iicLogoImg,
+    fontBold,
+    fontReg
+  );
+
+  const photoW = (width - 90) / 2;
+  const photoH = 190;
+  const startY = height - 90;
+
+  for (let i = 0; i < Math.min(photos.length, 6); i++) {
+    const photo = photos[i];
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+
+    const px = 35 + col * (photoW + 20);
+    const py = startY - (row + 1) * (photoH + 30);
+
+    page.drawRectangle({
+      x: px,
+      y: py,
+      width: photoW,
+      height: photoH,
+      color: rgb(0.97, 0.98, 0.99),
+      borderColor: rgb(0.8, 0.84, 0.88),
+      borderWidth: 1,
+    });
+
+    const photoUrl = photo.url?.startsWith("http")
+      ? photo.url
+      : `${backendBase}${photo.url}`;
+
+    try {
+      const buffer = await fetchArrayBuffer(photoUrl);
+      if (buffer) {
+        let embeddedImg;
+        if (photoUrl.toLowerCase().includes(".png")) {
+          embeddedImg = await pdfDoc.embedPng(buffer);
+        } else {
+          try {
+            embeddedImg = await pdfDoc.embedJpg(buffer);
+          } catch {
+            embeddedImg = await pdfDoc.embedPng(buffer);
+          }
+        }
+
+        const maxIW = photoW - 10;
+        const maxIH = photoH - 30;
+        const scaled = embeddedImg.scaleToFit(maxIW, maxIH);
+
+        const ix = px + (photoW - scaled.width) / 2;
+        const iy = py + 24 + (maxIH - scaled.height) / 2;
+
+        page.drawImage(embeddedImg, {
+          x: ix,
+          y: iy,
+          width: scaled.width,
+          height: scaled.height,
+        });
+      }
+    } catch (err) {
+      console.warn("Photo render error:", err);
+    }
+
+    const captionText = `Photo ${i + 1}: ${photo.caption || "Event Session"}`;
+    const capSize = 8.5;
+    let displayCap = captionText;
+    while (displayCap.length > 5 && fontBold.widthOfTextAtSize(displayCap, capSize) > photoW - 8) {
+      displayCap = displayCap.slice(0, -4) + "...";
+    }
+    const capW = fontBold.widthOfTextAtSize(displayCap, capSize);
+    page.drawText(displayCap, {
+      x: px + (photoW - capW) / 2,
+      y: py + 8,
+      size: capSize,
+      font: fontBold,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+  }
+}
 
 export interface ReportData {
   _id?: string;
@@ -612,14 +904,8 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   doc.text(linesPage2, marginLeft + col1W + col2W + 5, curY + 12);
   curY += rowH2;
 
-  // 5 Signatories Block with Digital Signatures
-  const signatories = [
-    { title: "Event Coordinators", stageNum: 1 },
-    { title: "HOD-BCA", stageNum: 2 },
-    { title: "Vice-Principal", stageNum: 3 },
-    { title: "IQAC Coordinator", stageNum: 4 },
-    { title: "Principal", stageNum: 5 },
-  ];
+  // 5 Signatories Block with Signature Image Imprinting
+  const signatories = signaturesConfig.signatories;
 
   const currentStageStr = report.approvalStage || "Event Coordinators";
   const getStageIndexNum = (st: string) => {
@@ -633,218 +919,208 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   const sigY = curY + 60;
   const sigSpacing = contentWidth / 5;
 
+  // Pre-load processed signature base64 images
+  const loadedSignatures: Record<number, string> = {};
+  for (const sig of signatories) {
+    if (sig.signatureUrl) {
+      try {
+        const base64 = await getProcessedSignatureBase64(sig.signatureUrl);
+        if (base64) {
+          loadedSignatures[sig.stageNum] = base64;
+        }
+      } catch (err) {
+        console.warn(`Failed loading signature for ${sig.title}:`, err);
+      }
+    }
+  }
+
   signatories.forEach((sig, index) => {
     const x = marginLeft + index * sigSpacing + sigSpacing / 2;
     const isSigned = activeStageIdx > sig.stageNum || currentStageStr === "Approved";
+    const sigImgBase64 = loadedSignatures[sig.stageNum];
 
-    if (isSigned) {
-      // Draw Digital Signature Stamp Badge
-      doc.setDrawColor(16, 185, 129);
-      doc.setFillColor(236, 253, 245);
-      doc.roundedRect(x - 42, sigY - 32, 84, 22, 3, 3, "FD");
+    if (isSigned && sigImgBase64) {
+      // Imprint real signature image onto document
+      doc.addImage(sigImgBase64, "JPEG", x - 32, sigY - 42, 64, 30);
 
-      setFont("bold", 7);
-      doc.setTextColor(5, 150, 105);
-      doc.text("✓ DIGITALLY SIGNED", x, sigY - 20, { align: "center" });
-
-      setFont("normal", 5.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`VERIFIED ID: STG-${sig.stageNum}09`, x, sigY - 13, { align: "center" });
-      doc.setTextColor(0, 0, 0);
+      // Draw subtle signature line
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.6);
+      doc.line(x - 38, sigY - 10, x + 38, sigY - 10);
     } else {
-      doc.setDrawColor(226, 232, 240);
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(x - 38, sigY - 28, 76, 18, 3, 3, "FD");
-
-      setFont("italic", 6.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text("⏳ Pending Stage", x, sigY - 16, { align: "center" });
-      doc.setTextColor(0, 0, 0);
+      // Clean signature line for unsigned / pending stage
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.5);
+      doc.line(x - 38, sigY - 10, x + 38, sigY - 10);
     }
 
-    setFont("bold", 9);
+    setFont("bold", 8.5);
     doc.text(sig.title, x, sigY + 8, { align: "center" });
   });
 
-  // ================= ANNEXURES WITH EMBEDDED IMAGES / PDF MERGE =================
+  // ================= UNIFIED MASTER PDF GENERATION VIA PDF-LIB =================
   const backendBase = "http://localhost:5000";
 
-  // ANNEXURE I: BROCHURE (If Image)
+  const basePdfBytes = doc.output("arraybuffer");
+  const finalPdfDoc = await PDFDocument.load(basePdfBytes);
+
+  // Embed fonts and logos for institutional headers
+  const fontBold = await finalPdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg = await finalPdfDoc.embedFont(StandardFonts.Helvetica);
+
+  let dscascLogoImg: any = null;
+  let iicLogoImg: any = null;
+
+  try {
+    const dscascBytes = base64ToUint8Array(DSCASC_LOGO_PNG_BASE64);
+    dscascLogoImg = await finalPdfDoc.embedPng(dscascBytes);
+  } catch (err) {
+    console.warn("Failed to embed DSCASC logo in pdf-lib:", err);
+  }
+
+  try {
+    const iicBytes = base64ToUint8Array(IIC_LOGO_PNG_BASE64);
+    iicLogoImg = await finalPdfDoc.embedPng(iicBytes);
+  } catch (err) {
+    console.warn("Failed to embed IIC logo in pdf-lib:", err);
+  }
+
+  // 1. ANNEXURE I: EVENT BROCHURE
   const brochure = report.attachments?.find(
     (att) => att.label === "brochure" && !att.isDeleted
   );
 
-  const isBrochurePdf =
-    brochure?.url?.toLowerCase().endsWith(".pdf") ||
-    brochure?.originalName?.toLowerCase().endsWith(".pdf");
-
-  if (brochure?.url && !isBrochurePdf) {
-    doc.addPage();
-    renderHeader(false);
-
-    setFont("bold", 12);
-    doc.text("ANNEXURE I: EVENT BROCHURE", pageWidth / 2, 85, { align: "center" });
-
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.8);
-    doc.line(marginLeft, 95, pageWidth - marginRight, 95);
-
+  if (brochure?.url) {
     const fullBrochureUrl = brochure.url.startsWith("http")
       ? brochure.url
       : `${backendBase}${brochure.url}`;
 
-    try {
-      const brochureBase64 = await getBase64ImageFromUrl(fullBrochureUrl);
-      if (brochureBase64) {
-        doc.addImage(brochureBase64, "JPEG", marginLeft + 30, 110, contentWidth - 60, 620, undefined, "FAST");
-      }
-    } catch (err) {
-      console.warn("Brochure image embed error:", err);
-    }
-  }
+    const isPdf =
+      brochure.url.toLowerCase().endsWith(".pdf") ||
+      brochure.originalName?.toLowerCase().endsWith(".pdf");
 
-  // ANNEXURE II: EVENT PHOTOGRAPHS
-  if (report.eventPhotos && report.eventPhotos.length > 0) {
-    doc.addPage();
-    renderHeader(false);
-
-    setFont("bold", 12);
-    doc.text("ANNEXURE II: EVENT PHOTOGRAPHS / GLIMPSES", pageWidth / 2, 85, { align: "center" });
-
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.8);
-    doc.line(marginLeft, 95, pageWidth - marginRight, 95);
-
-    const photoW = (contentWidth - 20) / 2;
-    const photoH = 190;
-    const startPhotoY = 110;
-
-    for (let i = 0; i < Math.min(report.eventPhotos.length, 6); i++) {
-      const photo = report.eventPhotos[i];
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-
-      const px = marginLeft + col * (photoW + 20);
-      const py = startPhotoY + row * (photoH + 30);
-
-      doc.setDrawColor(203, 213, 225);
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(px, py, photoW, photoH, 3, 3, "FD");
-
-      const photoUrl = photo.url?.startsWith("http")
-        ? photo.url
-        : `${backendBase}${photo.url}`;
-
-      try {
-        const photoBase64 = await getBase64ImageFromUrl(photoUrl);
-        if (photoBase64) {
-          doc.addImage(photoBase64, "JPEG", px + 4, py + 4, photoW - 8, photoH - 24, undefined, "FAST");
-        }
-      } catch (err) {
-        console.warn("Photo render error:", err);
-      }
-
-      setFont("bold", 8.5);
-      doc.text(
-        `Photo ${i + 1}: ${photo.caption || "Event Session"}`,
-        px + photoW / 2,
-        py + photoH - 6,
-        { align: "center" }
+    if (isPdf) {
+      await addPdfAnnexurePages(
+        finalPdfDoc,
+        fullBrochureUrl,
+        "ANNEXURE I: EVENT BROCHURE",
+        dscascLogoImg,
+        iicLogoImg,
+        fontBold,
+        fontReg
+      );
+    } else {
+      await addImageAnnexurePage(
+        finalPdfDoc,
+        fullBrochureUrl,
+        "ANNEXURE I: EVENT BROCHURE",
+        dscascLogoImg,
+        iicLogoImg,
+        fontBold,
+        fontReg
       );
     }
   }
 
-  // ANNEXURE III: SIGNED ATTENDANCE SHEETS (If Image)
-  const imageSheets = (report.signedAttendanceSheets || []).filter((s) => {
-    const isPdf =
-      s.url?.toLowerCase().endsWith(".pdf") ||
-      s.originalName?.toLowerCase().endsWith(".pdf") ||
-      s.fileName?.toLowerCase().endsWith(".pdf");
-    return !isPdf;
-  });
-
-  for (let sIdx = 0; sIdx < imageSheets.length; sIdx++) {
-    const sheet = imageSheets[sIdx];
-    doc.addPage();
-    renderHeader(false);
-
-    setFont("bold", 12);
-    doc.text(
-      `ANNEXURE III: SIGNED ATTENDANCE SHEET (Page ${sIdx + 1})`,
-      pageWidth / 2,
-      85,
-      { align: "center" }
+  // 2. ANNEXURE II: EVENT PHOTOGRAPHS
+  if (report.eventPhotos && report.eventPhotos.length > 0) {
+    await addPhotosAnnexurePage(
+      finalPdfDoc,
+      report.eventPhotos,
+      dscascLogoImg,
+      iicLogoImg,
+      fontBold,
+      fontReg,
+      backendBase
     );
-
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.8);
-    doc.line(marginLeft, 95, pageWidth - marginRight, 95);
-
-    const sheetUrl = sheet.url?.startsWith("http")
-      ? sheet.url
-      : `${backendBase}${sheet.url}`;
-
-    try {
-      const sheetBase64 = await getBase64ImageFromUrl(sheetUrl);
-      if (sheetBase64) {
-        doc.addImage(sheetBase64, "JPEG", marginLeft + 10, 110, contentWidth - 20, 640, undefined, "FAST");
-      }
-    } catch (err) {
-      console.warn("Signed sheet image embed error:", err);
-    }
   }
 
-  // ================= MERGE PDF FILES VIA PDF-LIB =================
-  const basePdfBytes = doc.output("arraybuffer");
-  const finalPdfDoc = await PDFDocument.load(basePdfBytes);
+  // 3. ANNEXURE III: SIGNED ATTENDANCE SHEETS
+  if (report.signedAttendanceSheets && report.signedAttendanceSheets.length > 0) {
+    for (let sIdx = 0; sIdx < report.signedAttendanceSheets.length; sIdx++) {
+      const sheet = report.signedAttendanceSheets[sIdx];
+      if (!sheet.url) continue;
 
-  // 1. If Brochure was a PDF, append/merge its pages
-  if (brochure?.url && isBrochurePdf) {
-    const fullBrochureUrl = brochure.url.startsWith("http")
-      ? brochure.url
-      : `${backendBase}${brochure.url}`;
+      const sheetUrl = sheet.url.startsWith("http")
+        ? sheet.url
+        : `${backendBase}${sheet.url}`;
 
-    const brochureBuffer = await fetchArrayBuffer(fullBrochureUrl);
-    if (brochureBuffer) {
-      try {
-        const brochurePdfDoc = await PDFDocument.load(brochureBuffer);
-        const copiedPages = await finalPdfDoc.copyPages(
-          brochurePdfDoc,
-          brochurePdfDoc.getPageIndices()
+      const isPdf =
+        sheet.url.toLowerCase().endsWith(".pdf") ||
+        sheet.originalName?.toLowerCase().endsWith(".pdf") ||
+        sheet.fileName?.toLowerCase().endsWith(".pdf");
+
+      const title =
+        report.signedAttendanceSheets.length > 1
+          ? `ANNEXURE III: SIGNED ATTENDANCE SHEET (Sheet ${sIdx + 1})`
+          : `ANNEXURE III: SIGNED ATTENDANCE SHEET`;
+
+      if (isPdf) {
+        await addPdfAnnexurePages(
+          finalPdfDoc,
+          sheetUrl,
+          title,
+          dscascLogoImg,
+          iicLogoImg,
+          fontBold,
+          fontReg
         );
-        copiedPages.forEach((p) => finalPdfDoc.addPage(p));
-      } catch (err) {
-        console.warn("Failed to merge brochure PDF:", err);
+      } else {
+        await addImageAnnexurePage(
+          finalPdfDoc,
+          sheetUrl,
+          title,
+          dscascLogoImg,
+          iicLogoImg,
+          fontBold,
+          fontReg
+        );
       }
     }
   }
 
-  // 2. If Signed Attendance Sheets were PDF files, merge every single page directly!
-  const pdfSheets = (report.signedAttendanceSheets || []).filter((s) => {
-    return (
-      s.url?.toLowerCase().endsWith(".pdf") ||
-      s.originalName?.toLowerCase().endsWith(".pdf") ||
-      s.fileName?.toLowerCase().endsWith(".pdf")
-    );
-  });
+  // 4. ANNEXURE IV: MISCELLANEOUS ATTACHMENTS
+  const miscAttachments = (report.attachments || []).filter(
+    (att) => att.label !== "brochure" && !att.isDeleted && att.url
+  );
 
-  for (const sheet of pdfSheets) {
-    if (!sheet.url) continue;
-    const sheetFullUrl = sheet.url.startsWith("http")
-      ? sheet.url
-      : `${backendBase}${sheet.url}`;
+  if (miscAttachments.length > 0) {
+    for (let mIdx = 0; mIdx < miscAttachments.length; mIdx++) {
+      const att = miscAttachments[mIdx];
+      if (!att.url) continue;
 
-    const sheetBuffer = await fetchArrayBuffer(sheetFullUrl);
-    if (sheetBuffer) {
-      try {
-        const sheetPdfDoc = await PDFDocument.load(sheetBuffer);
-        const copiedPages = await finalPdfDoc.copyPages(
-          sheetPdfDoc,
-          sheetPdfDoc.getPageIndices()
+      const attUrl = att.url.startsWith("http")
+        ? att.url
+        : `${backendBase}${att.url}`;
+
+      const isPdf =
+        att.url.toLowerCase().endsWith(".pdf") ||
+        att.originalName?.toLowerCase().endsWith(".pdf") ||
+        att.fileName?.toLowerCase().endsWith(".pdf");
+
+      const fileTitle = att.originalName || att.fileName || `File ${mIdx + 1}`;
+      const title = `ANNEXURE IV: MISCELLANEOUS ATTACHMENT (${fileTitle})`;
+
+      if (isPdf) {
+        await addPdfAnnexurePages(
+          finalPdfDoc,
+          attUrl,
+          title,
+          dscascLogoImg,
+          iicLogoImg,
+          fontBold,
+          fontReg
         );
-        copiedPages.forEach((p) => finalPdfDoc.addPage(p));
-      } catch (err) {
-        console.warn("Failed to merge signed attendance PDF sheet:", err);
+      } else {
+        await addImageAnnexurePage(
+          finalPdfDoc,
+          attUrl,
+          title,
+          dscascLogoImg,
+          iicLogoImg,
+          fontBold,
+          fontReg
+        );
       }
     }
   }
