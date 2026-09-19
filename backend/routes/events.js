@@ -644,6 +644,120 @@ router.post(
   }
 );
 
+// ================= UPLOAD MISCELLANEOUS ATTACHMENTS =================
+router.post(
+  "/:id/miscellaneous",
+  auth,
+  permit("admin", "faculty"),
+  upload.array("files", 10),
+  async (req, res) => {
+    try {
+      const event = await Event.findById(req.params.id);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: "At least one file is required" });
+      }
+
+      if (!event.attachments) event.attachments = [];
+
+      const newMetas = req.files.map((file) => ({
+        ...fileToMeta(file, req.user._id, req.user.role),
+        label: "miscellaneous",
+      }));
+
+      event.attachments.push(...newMetas);
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Miscellaneous attachment(s) uploaded successfully",
+        newAttachments: newMetas,
+        attachments: event.attachments,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// ================= DELETE ATTACHMENT BY ID (FACULTY/ADMIN) =================
+router.delete(
+  "/:eventId/attachments/:fileId",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+    try {
+      const { eventId, fileId } = req.params;
+      const event = await Event.findById(eventId);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      const fileIndex = (event.attachments || []).findIndex(
+        (f) => String(f._id) === String(fileId)
+      );
+
+      if (fileIndex === -1) {
+        return res.status(404).json({ message: "Attachment file not found" });
+      }
+
+      event.attachments[fileIndex].isDeleted = true;
+      event.attachments[fileIndex].deletedAt = new Date();
+      event.attachments[fileIndex].deletedBy = req.user._id;
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Attachment deleted successfully",
+        attachments: event.attachments,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// ================= DELETE SIGNED ATTENDANCE SHEET =================
+router.delete(
+  "/:eventId/signed-sheet/:sheetId",
+  auth,
+  permit("admin", "faculty"),
+  async (req, res) => {
+    try {
+      const { eventId, sheetId } = req.params;
+      const event = await Event.findById(eventId);
+
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      event.signedAttendanceSheets = (event.signedAttendanceSheets || []).filter(
+        (s) => String(s._id) !== String(sheetId)
+      );
+
+      event.attendanceAttached = (event.signedAttendanceSheets.length > 0) ? "Yes" : "No";
+
+      await event.save();
+      getIo().emit("event:updated", event);
+
+      res.json({
+        message: "Signed attendance sheet deleted successfully",
+        sheets: event.signedAttendanceSheets,
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+
+
 router.patch(
   "/:id/submit-report",
   auth,

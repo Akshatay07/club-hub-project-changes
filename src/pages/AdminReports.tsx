@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "@/api/api";
+import { SignatoriesBlock } from "@/components/dashboard/SignatoriesBlock";
 import {
   Card,
   CardContent,
@@ -1121,13 +1122,7 @@ export default function AdminReports() {
                     </div>
 
                     {/* 5 Institutional Signatories */}
-                    <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold pt-16 pb-4">
-                      <div>Event Coordinators</div>
-                      <div>HOD-BCA</div>
-                      <div>Vice-Principal</div>
-                      <div>IQAC Coordinator</div>
-                      <div>Principal</div>
-                    </div>
+                    <SignatoriesBlock currentStage={currentFormatted?.approvalStage || "Event Coordinators"} />
                   </div>
 
                   {/* Annexure Cards */}
@@ -1314,6 +1309,54 @@ export default function AdminReports() {
                         <span className="text-xs text-muted-foreground italic">No signed attendance sheet attached.</span>
                       )}
                     </div>
+
+                    {/* Annexure IV: Miscellaneous Attachments */}
+                    {(() => {
+                      const miscAtts = (currentFormatted.attachments || []).filter(
+                        (a: any) => a.label !== "brochure" && !a.isDeleted
+                      );
+                      return (
+                        <div className="border border-slate-300 rounded p-4">
+                          <div className="font-bold text-xs mb-2">
+                            Annexure IV: Miscellaneous Attachments ({miscAtts.length} attached)
+                          </div>
+                          {miscAtts.length > 0 ? (
+                            <div className="space-y-1">
+                              {miscAtts.map((att: any, i: number) => (
+                                <div key={att._id || i} className="flex items-center justify-between text-xs border-b py-1.5">
+                                  <span className="truncate pr-2">{att.originalName || att.fileName || `Attachment ${i + 1}`}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <a
+                                      href={getFullMediaUrl(att.url || "")}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 underline flex items-center gap-1 font-medium"
+                                    >
+                                      View <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs gap-1 text-slate-700 hover:text-slate-900"
+                                      onClick={() =>
+                                        downloadFileFromUrl(
+                                          att.url!,
+                                          sanitizeFilename(att.originalName || `Attachment_${i + 1}`)
+                                        )
+                                      }
+                                    >
+                                      <Download className="w-3 h-3" /> Download
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">No miscellaneous attachments attached.</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

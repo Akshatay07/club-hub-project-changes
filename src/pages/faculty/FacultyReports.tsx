@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import api from "@/api/api";
+import { SignatoriesBlock } from "@/components/dashboard/SignatoriesBlock";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ import {
   Check,
   X,
   FileDown,
+  Paperclip,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
@@ -80,6 +82,7 @@ const FacultyReports = () => {
   const [uploadingBrochure, setUploadingBrochure] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadingSheet, setUploadingSheet] = useState(false);
+  const [uploadingMisc, setUploadingMisc] = useState(false);
 
   // Photo Staging with Captions Modal
   const [stagedPhotos, setStagedPhotos] = useState<StagedPhoto[]>([]);
@@ -147,6 +150,7 @@ const FacultyReports = () => {
   const brochureInputRef = useRef<HTMLInputElement>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
+  const miscInputRef = useRef<HTMLInputElement>(null);
 
   // Load events
   const loadEvents = async () => {
@@ -601,6 +605,110 @@ const FacultyReports = () => {
     } finally {
       setUploadingSheet(false);
       if (sheetInputRef.current) sheetInputRef.current.value = "";
+    }
+  };
+
+  // Upload Miscellaneous Attachments
+  const handleMiscUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !selectedId) return;
+
+    try {
+      setUploadingMisc(true);
+      const form = new FormData();
+      Array.from(files).forEach((file) => {
+        form.append("files", file);
+      });
+
+      const res = await api.post(`/events/${selectedId}/miscellaneous`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        attachments: res.data.attachments || prev.attachments,
+      }));
+
+      toast({
+        title: "Miscellaneous Attachment(s) Uploaded",
+        description: `${files.length} document(s) attached as Annexure IV.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Attachment Upload Failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingMisc(false);
+      if (miscInputRef.current) miscInputRef.current.value = "";
+    }
+  };
+
+  // Delete Attachment File (Brochure / Miscellaneous)
+  const handleDeleteAttachment = async (fileId: string) => {
+    if (!selectedId || !fileId) return;
+    try {
+      const res = await api.delete(`/events/${selectedId}/attachments/${fileId}`);
+      setFormData((prev) => ({
+        ...prev,
+        attachments: res.data.attachments || prev.attachments?.filter((a) => a._id !== fileId),
+      }));
+      toast({
+        title: "Attachment Removed",
+        description: "File deleted from event report annexure.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Deletion Failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete Brochure
+  const handleDeleteBrochure = async () => {
+    if (!selectedId || !currentBrochure?._id) return;
+    try {
+      const res = await api.delete(`/events/${selectedId}/attachments/${currentBrochure._id}`);
+      setFormData((prev) => ({
+        ...prev,
+        attachments: res.data.attachments || prev.attachments?.filter((a) => a._id !== currentBrochure._id),
+      }));
+      toast({
+        title: "Brochure Removed",
+        description: "Event brochure file deleted successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Deletion Failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete Signed Attendance Sheet
+  const handleDeleteSignedSheet = async (sheetId: string) => {
+    if (!selectedId || !sheetId) return;
+    try {
+      const res = await api.delete(`/events/${selectedId}/signed-sheet/${sheetId}`);
+      setFormData((prev) => ({
+        ...prev,
+        signedAttendanceSheets: res.data.sheets || prev.signedAttendanceSheets?.filter((s) => s._id !== sheetId),
+        attendanceAttached: (res.data.sheets?.length > 0) ? "Yes" : "No",
+      }));
+      toast({
+        title: "Attendance Sheet Removed",
+        description: "Signed attendance sheet deleted successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Deletion Failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -1634,13 +1742,7 @@ const FacultyReports = () => {
                 </div>
 
                 {/* 5 Institutional Signatories at Bottom */}
-                <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold pt-16 pb-4">
-                  <div>Event Coordinators</div>
-                  <div>HOD-BCA</div>
-                  <div>Vice-Principal</div>
-                  <div>IQAC Coordinator</div>
-                  <div>Principal</div>
-                </div>
+                <SignatoriesBlock currentStage={selectedEventObj?.approvalStage || "Event Coordinators"} />
               </div>
 
               {/* Annexure Cards */}
@@ -1808,6 +1910,54 @@ const FacultyReports = () => {
                     <span className="text-xs text-muted-foreground italic">No signed attendance sheet attached.</span>
                   )}
                 </div>
+
+                {/* Annexure IV: Miscellaneous Attachments */}
+                {(() => {
+                  const miscAtts = (formData.attachments || []).filter(
+                    (a) => a.label !== "brochure" && !a.isDeleted
+                  );
+                  return (
+                    <div className="border border-slate-300 rounded p-4">
+                      <div className="font-bold text-xs mb-2">
+                        Annexure IV: Miscellaneous Attachments ({miscAtts.length} attached)
+                      </div>
+                      {miscAtts.length > 0 ? (
+                        <div className="space-y-1">
+                          {miscAtts.map((att, i) => (
+                            <div key={att._id || i} className="flex items-center justify-between text-xs border-b py-1.5">
+                              <span className="truncate pr-2">{att.originalName || att.fileName || `Attachment ${i + 1}`}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <a
+                                  href={getFullMediaUrl(att.url || "")}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-600 underline flex items-center gap-1 font-medium"
+                                >
+                                  View <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs gap-1 text-slate-700 hover:text-slate-900"
+                                  onClick={() =>
+                                    downloadFileFromUrl(
+                                      att.url!,
+                                      sanitizeFilename(att.originalName || `Attachment_${i + 1}`)
+                                    )
+                                  }
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No miscellaneous attachments added.</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1901,6 +2051,15 @@ const FacultyReports = () => {
                       }
                     >
                       <Download className="w-3 h-3" /> Download
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={handleDeleteBrochure}
+                      title="Delete Brochure File"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -2135,6 +2294,15 @@ const FacultyReports = () => {
                         >
                           <Download className="w-3 h-3" /> Download
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteSignedSheet(sheet._id!)}
+                          title="Delete Signed Attendance Sheet"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -2164,6 +2332,111 @@ const FacultyReports = () => {
                 Upload Scanned Signed Attendance Sheet
               </Button>
             </div>
+
+            {/* Attachment 4: Miscellaneous Attachments */}
+            {(() => {
+              const miscAtts = (formData.attachments || []).filter(
+                (a) => a.label !== "brochure" && !a.isDeleted
+              );
+              return (
+                <div className="border border-border rounded-xl p-4 space-y-3 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-md bg-purple-500/10 text-purple-500">
+                        <Paperclip className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-semibold">4. Miscellaneous Attachments (Annexure IV)</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Attach optional documents, permission letters, feedback summaries, or certificates.
+                        </p>
+                      </div>
+                    </div>
+
+                    {miscAtts.length > 0 ? (
+                      <Badge className="bg-purple-600 text-white">
+                        {miscAtts.length} File(s) Attached ✓
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Optional
+                      </Badge>
+                    )}
+                  </div>
+
+                  {miscAtts.length > 0 && (
+                    <div className="space-y-1.5">
+                      {miscAtts.map((att, i) => (
+                        <div
+                          key={att._id || i}
+                          className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border text-xs"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="w-4 h-4 text-purple-500 shrink-0" />
+                            <span className="font-medium truncate">{att.originalName || att.fileName || `Attachment ${i + 1}`}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={getFullMediaUrl(att.url || "")}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary hover:underline flex items-center gap-1 font-medium"
+                            >
+                              View <ExternalLink className="w-3 h-3" />
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              onClick={() =>
+                                downloadFileFromUrl(
+                                  att.url!,
+                                  sanitizeFilename(att.originalName || `Attachment_${i + 1}`)
+                                )
+                              }
+                            >
+                              <Download className="w-3 h-3" /> Download
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeleteAttachment(att._id!)}
+                              title="Delete Attachment"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <input
+                    ref={miscInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleMiscUpload}
+                  />
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => miscInputRef.current?.click()}
+                    disabled={uploadingMisc}
+                    className="w-full border-dashed"
+                  >
+                    {uploadingMisc ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2 text-purple-500" />
+                    )}
+                    Upload Miscellaneous Attachments
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2 pt-3 border-t border-border">
