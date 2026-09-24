@@ -4,6 +4,7 @@ import Club from "../models/Club.js";
 import Event from "../models/Event.js";
 import ProofSubmission from "../models/ProofSubmission.js";
 import BudgetRequest from "../models/Budget.js";
+import Signature from "../models/Signature.js";
 
 import auth from "../middleware/auth.js";
 import permit from "../middleware/role.js";
@@ -155,42 +156,88 @@ router.put("/events/:id/status", async (req, res) => {
 
 router.put("/events/:id/stage", async (req, res) => {
   try {
-    const { stage, approvalStage } = req.body;
+    const { stage, approvalStage, signature, signatureStage, stageSignatures } = req.body;
     const targetStage = stage || approvalStage;
 
     if (!targetStage) {
       return res.status(400).json({ message: "Approval stage is required" });
     }
 
-    const updateData = { approvalStage: targetStage };
-
-    if (targetStage === "Approved") {
-      updateData.status = "approved";
-    } else if (targetStage === "Rejected") {
-      updateData.status = "rejected";
-    } else {
-      // Still in review stages
-      updateData.status = "pending";
-    }
-
-    const event = await Event.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-
+    const event = await Event.findById(req.params.id);
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("event:updated", event);
+    event.approvalStage = targetStage;
+    if (targetStage === "Approved") {
+      event.status = "approved";
+    } else if (targetStage === "Rejected") {
+      event.status = "rejected";
+    } else {
+      event.status = "pending";
     }
 
-    res.json({ message: `Stage updated to ${targetStage}`, event });
+    if (!event.stageSignatures) {
+      event.stageSignatures = new Map();
+    }
+
+    if (signature) {
+      const stageKey = signatureStage || targetStage;
+      event.stageSignatures.set(stageKey, signature);
+      event.markModified("stageSignatures");
+      try {
+        await Signature.findOneAndUpdate(
+          { stageKey },
+          { signatureUrl: signature },
+          { upsert: true, new: true }
+        );
+      } catch (sigErr) {
+        console.warn("Failed to persist global signature:", sigErr);
+      }
+    }
+
+    if (stageSignatures && typeof stageSignatures === "object") {
+      for (const [k, v] of Object.entries(stageSignatures)) {
+        if (v && typeof v === "string") {
+          event.stageSignatures.set(k, v);
+          try {
+            await Signature.findOneAndUpdate(
+              { stageKey: k },
+              { signatureUrl: v },
+              { upsert: true, new: true }
+            );
+          } catch (sigErr) {}
+        }
+      }
+      event.markModified("stageSignatures");
+    }
+
+    await event.save();
+
+    const eventObj = event.toObject();
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("event:updated", eventObj);
+    }
+
+    res.json({ message: "Approval stage updated successfully", event: eventObj });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/signatures", async (req, res) => {
+  try {
+    const signatures = await Signature.find();
+    const sigMap = {};
+    signatures.forEach((s) => {
+      sigMap[s.stageKey] = s.signatureUrl;
+    });
+    res.json(sigMap);
+  } catch (err) {
+    console.error("Failed to fetch global signatures:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

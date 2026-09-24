@@ -32,12 +32,7 @@ import AdminComplaints from "./pages/admin/AdminComplaints";
 import Reports from "./pages/faculty/FacultyReports";
 import TrashPage from "@/pages/TrashPage";
 
-// Student
-import StudentEvents from "./pages/student/StudentEvents";
-import StudentClubs from "./pages/student/StudentClubs";
-import StudentMyRegistrations from "./pages/student/StudentMyRegistrations";
-import StudentProfile from "./pages/student/StudentProfile";
-import StudentNotifications from "./pages/student/StudentNotifications";
+
 
 // Faculty
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
@@ -325,84 +320,7 @@ const App = () => (
                 }
               />
 
-              {/* ================= STUDENT ================= */}
-              <Route
-                path="/student"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentEvents />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
 
-              <Route
-                path="/student/events"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentEvents />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/student/clubs"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentClubs />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/student/registrations"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentMyRegistrations />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/student/profile"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentProfile />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/student/notifications"
-                element={
-                  <ProtectedRoute>
-                    <RoleRoute allowedRoles={["student"]}>
-                      <DashboardLayout>
-                        <StudentNotifications />
-                      </DashboardLayout>
-                    </RoleRoute>
-                  </ProtectedRoute>
-                }
-              />
 
               {/* 404 */}
               <Route path="*" element={<NotFound />} />

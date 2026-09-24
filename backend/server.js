@@ -9,7 +9,7 @@ import clubRoutes from "./routes/clubs.js";
 import eventRoutes from "./routes/events.js";
 import complaintRoutes from "./routes/complaints.js";
 import dashboardRoutes from "./routes/dashboard.js";
-import studentRoutes from "./routes/student.js";
+
 import facultyRoutes from "./routes/faculty.js";
 import adminRoutes from "./routes/admin.js";
 import notificationRoutes from "./routes/notifications.js";
@@ -102,7 +102,7 @@ app.use("/api/clubs", clubRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/student", studentRoutes);
+
 app.use("/api/faculty", facultyRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);

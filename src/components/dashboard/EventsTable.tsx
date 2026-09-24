@@ -32,9 +32,11 @@ import {
   FileCheck,
   ShieldCheck,
   Download,
+  Upload,
 } from "lucide-react";
 import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
 import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "@/utils/reportLogos";
+import { saveStoredGlobalSignature } from "@/utils/signatureLoader";
 
 const PAGE_SIZE = 5;
 
@@ -83,7 +85,7 @@ const ReportPreviewContent = ({
   setPreviewEvent,
   downloadingReportId,
   handleDownloadReport,
-  handleStageChange,
+  openSignatureUploadModal,
   isFaculty,
   getStageBadgeStyle,
   formatReportData,
@@ -117,7 +119,7 @@ const ReportPreviewContent = ({
     return () => {
       isCancelled = true;
     };
-  }, [previewEvent?.approvalStage, previewEvent?._id]);
+  }, [previewEvent?.approvalStage, previewEvent?._id, JSON.stringify(previewEvent?.stageSignatures)]);
 
   return (
     <>
@@ -170,14 +172,9 @@ const ReportPreviewContent = ({
                   key={st}
                   type="button"
                   disabled={isFaculty}
-                  onClick={async () => {
+                  onClick={() => {
                     if (isFaculty) return;
-                    await handleStageChange(previewEvent._id, st);
-                    setPreviewEvent((prev: any) => ({
-                      ...prev,
-                      approvalStage: st,
-                      status: st === "Approved" ? "approved" : "pending",
-                    }));
+                    openSignatureUploadModal(previewEvent, st);
                   }}
                   className={`p-2 rounded-lg border text-center transition-all ${
                     isFaculty ? "cursor-default" : "cursor-pointer"
@@ -331,6 +328,7 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       attachments: ev.attachments || [],
       eventPhotos: ev.eventPhotos || [],
       signedAttendanceSheets: ev.signedAttendanceSheets || [],
+      stageSignatures: ev.stageSignatures || {},
     };
   };
 
@@ -462,34 +460,112 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
     }
   };
 
-  const handleStageChange = async (id: string, newStage: string) => {
+  // Stage Signature Upload Modal States
+  const [sigModalOpen, setSigModalOpen] = useState<boolean>(false);
+  const [targetStageForSig, setTargetStageForSig] = useState<string>("");
+  const [targetEventForSig, setTargetEventForSig] = useState<any>(null);
+  const [sigFile, setSigFile] = useState<File | null>(null);
+  const [sigPreview, setSigPreview] = useState<string>("");
+  const [sigUploading, setSigUploading] = useState<boolean>(false);
+
+  const openSignatureUploadModal = (event: any, stage: string) => {
+    setTargetEventForSig(event);
+    setTargetStageForSig(stage);
+    setSigFile(null);
+    setSigPreview("");
+    setSigModalOpen(true);
+  };
+
+  const handleSaveStageWithSignature = async (withSignature: boolean) => {
+    if (!targetEventForSig || !targetStageForSig) return;
+    setSigUploading(true);
     try {
-      await api.put(`/admin/events/${id}/stage`, { stage: newStage });
-      const updatedStatus = newStage === "Approved" ? "approved" : newStage === "Rejected" ? "rejected" : "pending";
+      const sigDataUrl = withSignature ? sigPreview : undefined;
+      if (sigDataUrl) {
+        saveStoredGlobalSignature(targetStageForSig, sigDataUrl);
+      }
+      await handleStageChange(
+        targetEventForSig._id,
+        targetStageForSig,
+        sigDataUrl,
+        targetStageForSig
+      );
+      setSigModalOpen(false);
+    } catch (err) {
+      console.error("Save stage with signature failed:", err);
+    } finally {
+      setSigUploading(false);
+    }
+  };
+
+  const handleStageChange = async (
+    id: string,
+    newStage: string,
+    signatureBase64?: string,
+    signatureStage?: string
+  ) => {
+    try {
+      const res = await api.put(`/admin/events/${id}/stage`, {
+        stage: newStage,
+        signature: signatureBase64,
+        signatureStage: signatureStage || newStage,
+      });
+
+      const updatedStatus =
+        newStage === "Approved" ? "approved" : newStage === "Rejected" ? "rejected" : "pending";
+      const updatedEvent = res.data?.event;
+
+      const mergeSignatures = (prevObj: any) => {
+        if (!signatureBase64) return updatedEvent?.stageSignatures || prevObj;
+        const stageKey = signatureStage || newStage;
+        if (updatedEvent?.stageSignatures) {
+          return updatedEvent.stageSignatures;
+        }
+        const copy = typeof prevObj === "object" && prevObj ? { ...prevObj } : {};
+        copy[stageKey] = signatureBase64;
+        return copy;
+      };
 
       setData((prev) =>
         prev.map((e) =>
           e._id === id
-            ? { ...e, approvalStage: newStage, status: updatedStatus }
+            ? {
+                ...e,
+                approvalStage: newStage,
+                status: updatedStatus,
+                stageSignatures: mergeSignatures(e.stageSignatures),
+              }
             : e
         )
       );
 
       setDetailsEvent((prev: any) =>
         prev && prev._id === id
-          ? { ...prev, approvalStage: newStage, status: updatedStatus }
+          ? {
+              ...prev,
+              approvalStage: newStage,
+              status: updatedStatus,
+              stageSignatures: mergeSignatures(prev.stageSignatures),
+            }
           : prev
       );
 
       setPreviewEvent((prev: any) =>
         prev && prev._id === id
-          ? { ...prev, approvalStage: newStage, status: updatedStatus }
+          ? {
+              ...prev,
+              approvalStage: newStage,
+              status: updatedStatus,
+              stageSignatures: mergeSignatures(prev.stageSignatures),
+            }
           : prev
       );
 
       toast({
         title: "Approval Stage Updated",
-        description: `Event moved to stage: ${newStage}`,
+        description: signatureBase64
+          ? `Stage updated to ${newStage} with signature uploaded!`
+          : `Event moved to stage: ${newStage}`,
       });
     } catch (err: any) {
       console.error("Failed to update stage:", err);
@@ -787,7 +863,7 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
                         ) : (
                           <select
                             value={currentStage}
-                            onChange={(ev) => handleStageChange(e._id, ev.target.value)}
+                            onChange={(ev) => openSignatureUploadModal(e, ev.target.value)}
                             className={`text-xs rounded-lg px-2.5 py-1.5 font-semibold border cursor-pointer transition-all shadow-sm ${getStageBadgeStyle(
                               currentStage
                             )}`}
@@ -1203,12 +1279,89 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
               setPreviewEvent={setPreviewEvent}
               downloadingReportId={downloadingReportId}
               handleDownloadReport={handleDownloadReport}
-              handleStageChange={handleStageChange}
+              openSignatureUploadModal={openSignatureUploadModal}
               isFaculty={isFaculty}
               getStageBadgeStyle={getStageBadgeStyle}
               formatReportData={formatReportData}
             />
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= MODAL 4: STAGE SIGNATURE UPLOAD MODAL ================= */}
+      <Dialog open={sigModalOpen} onOpenChange={setSigModalOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+              <Upload className="w-5 h-5 text-primary" />
+              <span>Mark Stage: {targetStageForSig}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Upload official digital signature image for <strong>{targetStageForSig}</strong> on event report <em>{targetEventForSig?.name}</em>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setSigFile(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setSigPreview(reader.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              {sigPreview ? (
+                <div className="flex flex-col items-center gap-2">
+                  <img
+                    src={sigPreview}
+                    alt="Signature Preview"
+                    className="max-h-24 max-w-[200px] object-contain border p-1.5 rounded bg-white shadow-sm"
+                  />
+                  <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Signature Attached ({sigFile?.name})
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 text-center py-3">
+                  <Upload className="w-8 h-8 text-slate-400 mb-1" />
+                  <span className="text-xs font-semibold text-slate-700">Click or Drag &amp; Drop Digital Signature</span>
+                  <span className="text-[10px] text-slate-500">Supports PNG, JPG (Clean background recommended)</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={sigUploading}
+                onClick={() => handleSaveStageWithSignature(false)}
+                className="text-xs text-slate-600"
+              >
+                Skip Upload &amp; Change Stage
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={sigUploading || !sigPreview}
+                onClick={() => handleSaveStageWithSignature(true)}
+                className="text-xs font-bold bg-primary text-primary-foreground gap-1.5 shadow-sm"
+              >
+                {sigUploading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save Stage &amp; Stamp Signature
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

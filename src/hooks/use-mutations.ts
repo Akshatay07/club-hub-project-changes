@@ -64,47 +64,7 @@ export const useDeleteEvent = () => {
   });
 };
 
-/* ================= STUDENT ================= */
 
-export const useRegisterEvent = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (eventId: string) => {
-      return api.post(`/student/events/${eventId}/register`);
-    },
-
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["student-events"] });
-    },
-  });
-};
-
-export const useCancelRegistration = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (eventId: string) => {
-      // ✅ FIXED ROUTE
-      return api.delete(`/student/events/${eventId}/cancel`);
-    },
-
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["student-events"] });
-    },
-  });
-};
-
-export const useSubmitFeedback = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: any) => api.post("/student/feedback", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["clubs"] });
-      qc.invalidateQueries({ queryKey: ["my-feedback"] });
-    },
-  });
-};
 
 /* ================= NOTIFICATIONS ================= */
 

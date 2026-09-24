@@ -47,14 +47,7 @@ const adminNav = [
   { title: "Settings", url: "/admin/settings", icon: Settings },
 ];
 
-const studentNav = [
-  { title: "Events", url: "/student/events", icon: CalendarDays },
-  { title: "Clubs", url: "/student/clubs", icon: Users },
-  { title: "My Registrations", url: "/student/registrations", icon: ClipboardList },
-  { title: "Notifications", url: "/student/notifications", icon: Bell },
-    { title: "Messages", url: "/messages", icon: MessageSquare },
-  { title: "Profile", url: "/student/profile", icon: GraduationCap },
-];
+
 
 const facultyNav = [
   { title: "Dashboard", url: "/faculty", icon: LayoutDashboard },

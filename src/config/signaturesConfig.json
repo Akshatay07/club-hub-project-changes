@@ -1,0 +1,44 @@
+{
+  "signatories": [
+    {
+      "stageNum": 1,
+      "id": "event_coordinators",
+      "title": "Event Coordinators",
+      "name": "Faculty Coordinator",
+      "designation": "Event Coordinator",
+      "signatureUrl": ""
+    },
+    {
+      "stageNum": 2,
+      "id": "hod_bca",
+      "title": "HOD-BCA",
+      "name": "HOD BCA",
+      "designation": "Head of Department",
+      "signatureUrl": ""
+    },
+    {
+      "stageNum": 3,
+      "id": "vice_principal",
+      "title": "Vice-Principal",
+      "name": "Vice Principal",
+      "designation": "Vice-Principal",
+      "signatureUrl": ""
+    },
+    {
+      "stageNum": 4,
+      "id": "iqac_coordinator",
+      "title": "IQAC Coordinator",
+      "name": "IQAC Coordinator",
+      "designation": "IQAC Head",
+      "signatureUrl": ""
+    },
+    {
+      "stageNum": 5,
+      "id": "principal",
+      "title": "Principal",
+      "name": "Principal",
+      "designation": "Principal",
+      "signatureUrl": ""
+    }
+  ]
+}

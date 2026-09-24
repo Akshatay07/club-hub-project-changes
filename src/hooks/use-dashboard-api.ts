@@ -138,41 +138,10 @@ export const useFacultyRegistrations = () =>
     ...baseConfig,
   });
 
-/* ================= STUDENT ================= */
-
-export const useStudentEvents = () => {
-  const { user } = useAuth();
-
-  return useQuery({
-  queryKey: ["student-events"],
-  queryFn: () => fetchData("/student/events"),
-  enabled: !!user,
-  retry: false,   // 👈 ADD THIS LINE
-});
-};
-
-export const useMyRegistrations = () => {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ["my-registrations"],
-    queryFn: () => fetchData("/student/my-registrations"),
-    enabled: !!user,
-    ...baseConfig,
-  });
-};
-
 export const useMyFeedback = () =>
   useQuery({
     queryKey: ["my-feedback"],
     queryFn: () => fetchData("/feedback"),
-    ...baseConfig,
-  });
-
-export const useStudentClubs = () =>
-  useQuery({
-    queryKey: ["student-clubs"],
-    queryFn: () => fetchData("/clubs"),
     ...baseConfig,
   });
 

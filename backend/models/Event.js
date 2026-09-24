@@ -60,6 +60,12 @@ const eventSchema = new mongoose.Schema(
       index: true,
     },
 
+    stageSignatures: {
+      type: Map,
+      of: String,
+      default: {},
+    },
+
     date: { type: String, required: true },
     time: { type: String, required: true },
     endTime: { type: String, default: "" },
