@@ -255,6 +255,49 @@ const FacultyAttendance = () => {
     }
   };
 
+  const handleDownloadFeedbackPDF = async () => {
+    if (!selectedEvent) return;
+    try {
+      let res;
+      try {
+        res = await api.get(`/events/${selectedEvent}/feedback-pdf`, {
+          responseType: "blob",
+        });
+      } catch {
+        res = await api.get(`/faculty/events/${selectedEvent}/feedback-pdf`, {
+          responseType: "blob",
+        });
+      }
+
+      if (res.data.type === "application/json") {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        throw new Error(json.message || "Failed to generate feedback form");
+      }
+
+      const file = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `feedback-form-${(activeEvent?.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Feedback Form Downloaded",
+        description: `Downloaded blank student feedback form for ${activeEvent?.name || "the event"}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Download Failed",
+        description: err?.message || err?.response?.data?.message || "Could not generate feedback form",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Export CSV
   const handleExportCSV = () => {
     if (!filtered.length) {
@@ -522,6 +565,18 @@ const FacultyAttendance = () => {
                 Download Sheet
               </>
             )}
+          </Button>
+
+          {/* BUTTON 4: Download Blank Feedback Form */}
+          <Button
+            variant="outline"
+            onClick={handleDownloadFeedbackPDF}
+            disabled={!selectedEvent}
+            className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
+            title="Download blank printable student feedback form"
+          >
+            <FileText className="h-4 w-4" />
+            Feedback Form
           </Button>
 
           {/* BUTTON 4: Export CSV */}

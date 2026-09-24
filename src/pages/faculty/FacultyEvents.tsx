@@ -196,6 +196,48 @@ const FacultyEvents = () => {
     }
   };
 
+  const handleDownloadFeedbackPDF = async (event: any) => {
+    try {
+      let res;
+      try {
+        res = await api.get(`/events/${event._id}/feedback-pdf`, {
+          responseType: "blob",
+        });
+      } catch {
+        res = await api.get(`/faculty/events/${event._id}/feedback-pdf`, {
+          responseType: "blob",
+        });
+      }
+
+      if (res.data.type === "application/json") {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        throw new Error(json.message || "Failed to generate feedback form");
+      }
+
+      const file = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `feedback-form-${(event.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Feedback Form Downloaded",
+        description: `Downloaded blank student feedback form for ${event.name}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Download Failed",
+        description: err?.message || err?.response?.data?.message || "Could not generate feedback form",
+        variant: "destructive",
+      });
+    }
+  };
+
   const calculatedPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
 
   return (
@@ -299,6 +341,17 @@ const FacultyEvents = () => {
                     >
                       <Download className="h-3.5 w-3.5" />
                       Sheet
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30"
+                      onClick={() => handleDownloadFeedbackPDF(event)}
+                      title="Download blank printable student feedback form"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Feedback
                     </Button>
 
                     <Button
