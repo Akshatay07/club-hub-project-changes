@@ -245,6 +245,7 @@ export default function AdminReports() {
       attachments: ev.attachments || [],
       eventPhotos: ev.eventPhotos || [],
       signedAttendanceSheets: ev.signedAttendanceSheets || [],
+      stageSignatures: ev.stageSignatures || {},
     };
   };
 
@@ -837,37 +838,37 @@ export default function AdminReports() {
                 <div className="bg-white text-black p-8 md:p-12 rounded-lg border border-slate-300 shadow-md max-w-4xl mx-auto font-serif leading-snug">
                   {/* PAGE 1 */}
                   <div className="space-y-4">
-                    {/* Header */}
-                    <div className="flex items-center justify-between gap-4 pb-2">
+                    {/* Header Box */}
+                    <div className="border border-black p-3 flex items-center justify-between gap-4">
                       <img
                         src="/dscasc_logo.png"
                         alt="DSCASC Crest"
-                        className="w-[76px] h-[76px] object-contain shrink-0"
+                        className="w-[65px] h-[65px] object-contain shrink-0"
                       />
 
-                      <div className="text-center space-y-1 flex-1 px-2">
+                      <div className="text-center space-y-0.5 flex-1 px-2">
                         <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
                           Dayananda Sagar College of Arts, Science, and Commerce
                         </h2>
                         <h3 className="text-sm font-bold text-slate-800">
                           Internal Quality Assurance Cell
                         </h3>
-                        <p className="text-xs md:text-sm font-bold text-slate-900">
-                          {currentFormatted.type || "Faculty Development Program"} on “{currentFormatted.name}”
+                        <p className="text-xs font-bold text-slate-900">
+                          Unit Name: {currentFormatted.unitName || currentFormatted.clubName || "__________________________"}
                         </p>
                       </div>
 
                       <img
                         src="/iic_logo.png"
                         alt="IIC Logo"
-                        className="w-32 h-14 object-contain shrink-0"
+                        className="w-28 h-12 object-contain shrink-0"
                       />
                     </div>
 
                     {/* Department & Date Row */}
-                    <div className="flex justify-between items-center text-xs font-bold pt-1 pb-1">
-                      <span>Department: {currentFormatted.department || "BCA"}</span>
-                      <span>Date of Report: {currentFormatted.reportDate}</span>
+                    <div className="flex justify-between items-center text-xs font-bold pt-0.5 pb-0.5">
+                      <span>Department*: MCA / MBA / M. Com / Bcom / BBA / BCA / B.Sc.{currentFormatted.department && !currentFormatted.department.includes('/') ? ` (${currentFormatted.department})` : ''}</span>
+                      <span>Date of Report: {currentFormatted.reportDate || currentFormatted.date || "31-01-2026"}</span>
                     </div>
 
                     {/* 24-Point Table */}
@@ -898,7 +899,15 @@ export default function AdminReports() {
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center">2.</td>
                             <td className="border-r border-black p-2 font-bold">Title of the Event</td>
-                            <td className="p-2 font-bold">“{currentFormatted.name}”</td>
+                            <td className="p-0">
+                              <div className="flex divide-x divide-black">
+                                <div className="p-2 flex-1 font-bold">“{currentFormatted.name}”</div>
+                                <div className="p-2 w-56 flex flex-col justify-center">
+                                  <span className="font-bold">Aligned SDG Goal(s)</span>
+                                  <span className="text-slate-700">{currentFormatted.alignedSDG || "-"}</span>
+                                </div>
+                              </div>
+                            </td>
                           </tr>
 
                           {/* 3 & 4 */}
@@ -907,7 +916,7 @@ export default function AdminReports() {
                             <td className="border-r border-black p-2 font-bold">Date of Conduction</td>
                             <td className="p-0">
                               <div className="flex divide-x divide-black">
-                                <div className="p-2 flex-1">{currentFormatted.date}</div>
+                                <div className="p-2 flex-1">{currentFormatted.date || "22nd ,24th ,28th, 30th ,31st Jan 2026"}</div>
                                 <div className="p-2 flex items-center gap-2 w-56">
                                   <span className="font-bold">4. &nbsp; Time :</span>
                                   <span className="font-bold">{currentFormatted.time || "2:00 PM to 4:00 PM"}</span>
@@ -926,11 +935,33 @@ export default function AdminReports() {
                           {/* 6 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center align-top">6.</td>
-                            <td className="border-r border-black p-2 font-bold align-top">Resource Person 1 Details</td>
-                            <td className="p-2 space-y-0.5 font-bold">
-                              <div>{currentFormatted.resourcePerson1?.name || "Nirmal Gaud"}</div>
-                              <div>{currentFormatted.resourcePerson1?.designation || "Founder & CEO"}</div>
-                              <div>{currentFormatted.resourcePerson1?.organization || "Cognitia Research - ThinkAI"}</div>
+                            <td className="border-r border-black p-2 font-bold align-top">
+                              Resource Person 1 Details<br />
+                              <span className="font-normal text-[11px]">(Profile to be enclosed)</span>
+                            </td>
+                            <td className="p-0">
+                              <table className="w-full text-xs border-collapse divide-y divide-black">
+                                <tbody>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold w-24">Name</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.name || "Nirmal Gaud"}</td>
+                                    <td className="p-1.5 font-bold w-28">Organization</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.organization || "Cognitia Research - ThinkAI"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Designation</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.designation || "Founder & CEO"}</td>
+                                    <td className="p-1.5 font-bold">Specialization</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.specialization || "-"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Mobile No.</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.mobile || "-"}</td>
+                                    <td className="p-1.5 font-bold">Email ID</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson1?.email || "-"}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
                             </td>
                           </tr>
 
@@ -943,9 +974,35 @@ export default function AdminReports() {
 
                           {/* 8 */}
                           <tr className="border-b border-black">
-                            <td className="border-r border-black p-2 font-bold text-center">8.</td>
-                            <td className="border-r border-black p-2 font-bold">Resource Person 2 Details</td>
-                            <td className="p-2">{currentFormatted.resourcePerson2?.name || "NA"}</td>
+                            <td className="border-r border-black p-2 font-bold text-center align-top">8.</td>
+                            <td className="border-r border-black p-2 font-bold align-top">
+                              Resource Person 2 Details<br />
+                              <span className="font-normal text-[11px]">(Profile to be enclosed)</span>
+                            </td>
+                            <td className="p-0">
+                              <table className="w-full text-xs border-collapse divide-y divide-black">
+                                <tbody>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold w-24">Name</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.name || "NA"}</td>
+                                    <td className="p-1.5 font-bold w-28">Organization</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.organization || "NA"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Designation</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.designation || "NA"}</td>
+                                    <td className="p-1.5 font-bold">Specialization</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.specialization || "NA"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Mobile No.</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.mobile || "NA"}</td>
+                                    <td className="p-1.5 font-bold">Email ID</td>
+                                    <td className="p-1.5">{currentFormatted.resourcePerson2?.email || "NA"}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
                           </tr>
 
                           {/* 9 */}
@@ -957,15 +1014,18 @@ export default function AdminReports() {
 
                           {/* 10 */}
                           <tr className="border-b border-black">
-                            <td className="border-r border-black p-2 font-bold text-center">10.</td>
-                            <td className="border-r border-black p-2 font-bold">No. Faculty Participants</td>
+                            <td className="border-r border-black p-2 font-bold text-center align-top">10.</td>
+                            <td className="border-r border-black p-2 font-bold align-top">
+                              No. Faculty Participants<br />
+                              <span className="font-normal text-[11px]">(Enclose a copy of names with signatures)</span>
+                            </td>
                             <td className="p-0">
-                              <div className="flex divide-x divide-black">
-                                <div className="p-2 w-32 flex justify-between">
+                              <div className="flex divide-x divide-black h-full min-h-[40px]">
+                                <div className="p-2 w-32 flex justify-between items-center">
                                   <span className="font-bold">Internal:</span>
                                   <span className="font-bold">{currentFormatted.facultyParticipants?.internal ?? 22}</span>
                                 </div>
-                                <div className="p-2 flex-1 flex justify-between">
+                                <div className="p-2 flex-1 flex justify-between items-center">
                                   <span className="font-bold">External:</span>
                                   <span className="font-bold">{currentFormatted.facultyParticipants?.external || "NIL"}</span>
                                 </div>
@@ -975,15 +1035,18 @@ export default function AdminReports() {
 
                           {/* 11 */}
                           <tr className="border-b border-black">
-                            <td className="border-r border-black p-2 font-bold text-center">11.</td>
-                            <td className="border-r border-black p-2 font-bold">No. Student Participants</td>
+                            <td className="border-r border-black p-2 font-bold text-center align-top">11.</td>
+                            <td className="border-r border-black p-2 font-bold align-top">
+                              No. Student Participants<br />
+                              <span className="font-normal text-[11px]">(Enclose a copy of names with signatures)</span>
+                            </td>
                             <td className="p-0">
-                              <div className="flex divide-x divide-black">
-                                <div className="p-2 w-32 flex justify-between">
+                              <div className="flex divide-x divide-black h-full min-h-[40px]">
+                                <div className="p-2 w-32 flex justify-between items-center">
                                   <span className="font-bold">Internal:</span>
                                   <span>{currentFormatted.studentParticipants?.internal || "---"}</span>
                                 </div>
-                                <div className="p-2 flex-1 flex justify-between">
+                                <div className="p-2 flex-1 flex justify-between items-center">
                                   <span className="font-bold">External:</span>
                                   <span className="font-bold">{currentFormatted.studentParticipants?.external || "NIL"}</span>
                                 </div>
@@ -994,21 +1057,55 @@ export default function AdminReports() {
                           {/* 12 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center align-top">12.</td>
-                            <td className="border-r border-black p-2 font-bold align-top">Faculty Coordinator</td>
-                            <td className="p-2 whitespace-pre-line leading-relaxed">{currentFormatted.facultyCoordinatorDetails}</td>
+                            <td className="border-r border-black p-2 font-bold align-top">Faculty Coordinator/s</td>
+                            <td className="p-0">
+                              <table className="w-full text-xs border-collapse divide-y divide-black">
+                                <tbody>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold w-28">Full Name</td>
+                                    <td className="p-1.5">{currentFormatted.facultyCoordinator || "Lakshmi S"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Department</td>
+                                    <td className="p-1.5">{currentFormatted.department || "Department of Computer Applications, DSCASC"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Designation</td>
+                                    <td className="p-1.5">Assistant Professor</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
                           </tr>
 
                           {/* 13 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center align-top">13.</td>
                             <td className="border-r border-black p-2 font-bold align-top">Student Coordinator/s</td>
-                            <td className="p-2 whitespace-pre-line leading-relaxed">{currentFormatted.studentCoordinatorDetails}</td>
+                            <td className="p-0">
+                              <table className="w-full text-xs border-collapse divide-y divide-black">
+                                <tbody>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold w-28">Full Name</td>
+                                    <td className="p-1.5">{currentFormatted.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi"}</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Department</td>
+                                    <td className="p-1.5">P03CJ24S126119 III sem MCA</td>
+                                  </tr>
+                                  <tr className="divide-x divide-black">
+                                    <td className="p-1.5 font-bold">Designation</td>
+                                    <td className="p-1.5">-</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
                           </tr>
 
                           {/* 14 & 15 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center">14.</td>
-                            <td className="border-r border-black p-2 font-bold">Total Expenditure</td>
+                            <td className="border-r border-black p-2 font-bold">Total Expenditure (Details to be enclosed)</td>
                             <td className="p-0">
                               <div className="flex divide-x divide-black">
                                 <div className="p-2 w-28 md:w-32 font-bold">{currentFormatted.totalExpenditure || "20,000/-"}</div>
@@ -1023,7 +1120,7 @@ export default function AdminReports() {
                           {/* 16 & 17 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center">16.</td>
-                            <td className="border-r border-black p-2 font-bold">Agenda of the Event</td>
+                            <td className="border-r border-black p-2 font-bold">Agenda of the Event (Attach a copy)</td>
                             <td className="p-0">
                               <div className="flex divide-x divide-black">
                                 <div className="p-2 w-28 md:w-32">{currentFormatted.agenda || "Training on AI/ML model analysis and research paper writing"}</div>
@@ -1053,12 +1150,12 @@ export default function AdminReports() {
                           {/* 20 & 21 */}
                           <tr className="border-b border-black">
                             <td className="border-r border-black p-2 font-bold text-center">20.</td>
-                            <td className="border-r border-black p-2 font-bold">Certificates Printed?</td>
+                            <td className="border-r border-black p-2 font-bold">Certificates Printed? (Attach a copy**)</td>
                             <td className="p-0">
                               <div className="flex divide-x divide-black">
                                 <div className="p-2 w-28 md:w-32 font-bold">{currentFormatted.certificatesPrinted || "No"}</div>
                                 <div className="p-2 flex-1 flex items-center gap-2">
-                                  <span className="font-bold">21. &nbsp; Feedback Collected?</span>
+                                  <span className="font-bold">21. &nbsp; Feedback Collected? (Attach a copy**)</span>
                                   <span className="font-bold">{currentFormatted.feedbackCollected || "Yes"}</span>
                                 </div>
                               </div>
@@ -1073,7 +1170,7 @@ export default function AdminReports() {
                               <div className="flex divide-x divide-black">
                                 <div className="p-2 w-28 md:w-32 font-bold">{currentFormatted.attendanceAttached || "Yes"}</div>
                                 <div className="p-2 flex-1 flex items-center gap-2">
-                                  <span className="font-bold">23 &nbsp; Photographs of the Event</span>
+                                  <span className="font-bold">23. &nbsp; Photographs of the Event</span>
                                   <span className="font-bold">{currentFormatted.photographsAttached || "Attached"}</span>
                                 </div>
                               </div>
@@ -1083,7 +1180,7 @@ export default function AdminReports() {
                           {/* 24 */}
                           <tr>
                             <td className="border-r border-black p-2 font-bold text-center align-top">24.</td>
-                            <td className="border-r border-black p-2 font-bold align-top">Summary of the Event</td>
+                            <td className="border-r border-black p-2 font-bold align-top">Summary of the Event (Around 100 words)</td>
                             <td className="p-2 leading-relaxed text-justify">
                               {currentFormatted.summary?.slice(0, 560) || "The Department of Computer Applications – BCA conducted a FDP for faculty members by Nirmal Gaud..."}
                             </td>
@@ -1122,7 +1219,10 @@ export default function AdminReports() {
                     </div>
 
                     {/* 5 Institutional Signatories */}
-                    <SignatoriesBlock currentStage={currentFormatted?.approvalStage || "Event Coordinators"} />
+                    <SignatoriesBlock
+                      currentStage={currentFormatted?.approvalStage || "Event Coordinators"}
+                      stageSignatures={currentFormatted?.stageSignatures}
+                    />
                   </div>
 
                   {/* Annexure Cards */}

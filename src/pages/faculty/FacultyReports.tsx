@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
-import { DSCASC_LOGO_SVG, IIC_LOGO_SVG } from "@/utils/reportLogos";
+import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "@/utils/reportLogos";
 import {
   downloadFileFromUrl,
   downloadBatchFiles,
@@ -716,7 +716,10 @@ const FacultyReports = () => {
   const handleDownloadPdf = async () => {
     try {
       setDownloadingPdf(true);
-      const doc = await generateInstitutionalReportPdf(formData);
+      const doc = await generateInstitutionalReportPdf({
+        ...formData,
+        stageSignatures: selectedEventObj?.stageSignatures,
+      });
       const sanitizedName = (formData.name || "DSCASC_Report").replace(
         /[^a-zA-Z0-9_-]/g,
         "_"
@@ -1400,7 +1403,7 @@ const FacultyReports = () => {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">23. Photographs of Event</Label>
                   <Input
-                    value={formData.photographsAttached || "Attached"}
+                    value={typeof formData.photographsAttached === "string" ? formData.photographsAttached : "Attached"}
                     onChange={(e) =>
                       setFormData({ ...formData, photographsAttached: e.target.value })
                     }
@@ -1496,37 +1499,37 @@ const FacultyReports = () => {
             <div className="bg-white text-black p-8 md:p-12 rounded-lg border border-slate-300 shadow-md max-w-4xl mx-auto font-serif leading-snug">
               {/* PAGE 1 */}
               <div className="space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between gap-4 pb-2">
+                {/* Header Box */}
+                <div className="border border-black p-3 flex items-center justify-between gap-4">
                   <img
                     src="/dscasc_logo.png"
                     alt="DSCASC Crest"
-                    className="w-[76px] h-[76px] object-contain shrink-0"
+                    className="w-[65px] h-[65px] object-contain shrink-0"
                   />
 
-                  <div className="text-center space-y-1 flex-1 px-2">
+                  <div className="text-center space-y-0.5 flex-1 px-2">
                     <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">
                       Dayananda Sagar College of Arts, Science, and Commerce
                     </h2>
                     <h3 className="text-sm font-bold text-slate-800">
                       Internal Quality Assurance Cell
                     </h3>
-                    <p className="text-xs md:text-sm font-bold text-slate-900">
-                      {formData.type || "FDP"} on “{formData.name || "Computational Mathematics for AI & Machine Learning: Modeling, Analysis, and Research Paper Writing"}”
+                    <p className="text-xs font-bold text-slate-900">
+                      Unit Name: {formData.unitName || formData.clubName || "__________________________"}
                     </p>
                   </div>
 
                   <img
                     src="/iic_logo.png"
                     alt="IIC Logo"
-                    className="w-32 h-14 object-contain shrink-0"
+                    className="w-28 h-12 object-contain shrink-0"
                   />
                 </div>
 
                 {/* Department & Date Row */}
-                <div className="flex justify-between items-center text-xs font-bold pt-1 pb-1">
-                  <span>Department: {formData.department || "BCA"}</span>
-                  <span>Date of Report: {formData.reportDate || "31-01-2026"}</span>
+                <div className="flex justify-between items-center text-xs font-bold pt-0.5 pb-0.5">
+                  <span>Department*: MCA / MBA / M. Com / Bcom / BBA / BCA / B.Sc.{formData.department && !formData.department.includes('/') ? ` (${formData.department})` : ''}</span>
+                  <span>Date of Report: {formData.reportDate || formData.date || "31-01-2026"}</span>
                 </div>
 
                 {/* 24-Point Table */}
@@ -1550,7 +1553,15 @@ const FacultyReports = () => {
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">2.</td>
                         <td className="border-r border-black p-2 font-bold">Title of the Event</td>
-                        <td className="p-2 font-bold">“{formData.name}”</td>
+                        <td className="p-0">
+                          <div className="flex divide-x divide-black">
+                            <div className="p-2 flex-1 font-bold">“{formData.name}”</div>
+                            <div className="p-2 w-56 flex flex-col justify-center">
+                              <span className="font-bold">Aligned SDG Goal(s)</span>
+                              <span className="text-slate-700">{formData.alignedSDG || "-"}</span>
+                            </div>
+                          </div>
+                        </td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">3.</td>
@@ -1572,11 +1583,33 @@ const FacultyReports = () => {
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center align-top">6.</td>
-                        <td className="border-r border-black p-2 font-bold align-top">Resource Person 1 Details</td>
-                        <td className="p-2 space-y-0.5 font-bold">
-                          <div>{formData.resourcePerson1?.name || "Nirmal Gaud"}</div>
-                          <div>{formData.resourcePerson1?.designation || "Founder & CEO"}</div>
-                          <div>{formData.resourcePerson1?.organization || "Cognitia Research - ThinkAI"}</div>
+                        <td className="border-r border-black p-2 font-bold align-top">
+                          Resource Person 1 Details<br />
+                          <span className="font-normal text-[11px]">(Profile to be enclosed)</span>
+                        </td>
+                        <td className="p-0">
+                          <table className="w-full text-xs border-collapse divide-y divide-black">
+                            <tbody>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold w-24">Name</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.name || "Nirmal Gaud"}</td>
+                                <td className="p-1.5 font-bold w-28">Organization</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.organization || "Cognitia Research - ThinkAI"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Designation</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.designation || "Founder & CEO"}</td>
+                                <td className="p-1.5 font-bold">Specialization</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.specialization || "-"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Mobile No.</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.mobile || "-"}</td>
+                                <td className="p-1.5 font-bold">Email ID</td>
+                                <td className="p-1.5">{formData.resourcePerson1?.email || "-"}</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </td>
                       </tr>
                       <tr className="border-b border-black">
@@ -1585,25 +1618,54 @@ const FacultyReports = () => {
                         <td className="p-2">{formData.resourcePerson1Topics || "Mathematics behind AI/ML model with tips and tools to write Research paper"}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="border-r border-black p-2 font-bold text-center">8.</td>
-                        <td className="border-r border-black p-2 font-bold">Resource Person 2 Details</td>
-                        <td className="p-2">{formData.resourcePerson2?.name || "NA"}</td>
+                        <td className="border-r border-black p-2 font-bold text-center align-top">8.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">
+                          Resource Person 2 Details<br />
+                          <span className="font-normal text-[11px]">(Profile to be enclosed)</span>
+                        </td>
+                        <td className="p-0">
+                          <table className="w-full text-xs border-collapse divide-y divide-black">
+                            <tbody>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold w-24">Name</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.name || "NA"}</td>
+                                <td className="p-1.5 font-bold w-28">Organization</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.organization || "NA"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Designation</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.designation || "NA"}</td>
+                                <td className="p-1.5 font-bold">Specialization</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.specialization || "NA"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Mobile No.</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.mobile || "NA"}</td>
+                                <td className="p-1.5 font-bold">Email ID</td>
+                                <td className="p-1.5">{formData.resourcePerson2?.email || "NA"}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">9.</td>
-                        <td className="border-r-black p-2 font-bold">Topics Covered</td>
+                        <td className="border-r border-black p-2 font-bold">Topics Covered</td>
                         <td className="p-2">{formData.resourcePerson2Topics || "NA"}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="border-r border-black p-2 font-bold text-center">10.</td>
-                        <td className="border-r border-black p-2 font-bold">No. Faculty Participants</td>
+                        <td className="border-r border-black p-2 font-bold text-center align-top">10.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">
+                          No. Faculty Participants<br />
+                          <span className="font-normal text-[11px]">(Enclose a copy of names with signatures)</span>
+                        </td>
                         <td className="p-0">
-                          <div className="flex divide-x divide-black">
-                            <div className="p-2 w-32 flex justify-between">
+                          <div className="flex divide-x divide-black h-full min-h-[40px]">
+                            <div className="p-2 w-32 flex justify-between items-center">
                               <span className="font-bold">Internal:</span>
                               <span className="font-bold">{formData.facultyParticipants?.internal ?? 22}</span>
                             </div>
-                            <div className="p-2 flex-1 flex justify-between">
+                            <div className="p-2 flex-1 flex justify-between items-center">
                               <span className="font-bold">External:</span>
                               <span className="font-bold">{formData.facultyParticipants?.external || "NIL"}</span>
                             </div>
@@ -1611,15 +1673,18 @@ const FacultyReports = () => {
                         </td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="border-r border-black p-2 font-bold text-center">11.</td>
-                        <td className="border-r border-black p-2 font-bold">No. Student Participants</td>
+                        <td className="border-r border-black p-2 font-bold text-center align-top">11.</td>
+                        <td className="border-r border-black p-2 font-bold align-top">
+                          No. Student Participants<br />
+                          <span className="font-normal text-[11px]">(Enclose a copy of names with signatures)</span>
+                        </td>
                         <td className="p-0">
-                          <div className="flex divide-x divide-black">
-                            <div className="p-2 w-32 flex justify-between">
+                          <div className="flex divide-x divide-black h-full min-h-[40px]">
+                            <div className="p-2 w-32 flex justify-between items-center">
                               <span className="font-bold">Internal:</span>
                               <span>{formData.studentParticipants?.internal || "---"}</span>
                             </div>
-                            <div className="p-2 flex-1 flex justify-between">
+                            <div className="p-2 flex-1 flex justify-between items-center">
                               <span className="font-bold">External:</span>
                               <span className="font-bold">{formData.studentParticipants?.external || "NIL"}</span>
                             </div>
@@ -1628,17 +1693,51 @@ const FacultyReports = () => {
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center align-top">12.</td>
-                        <td className="border-r border-black p-2 font-bold align-top">Faculty Coordinator</td>
-                        <td className="p-2 whitespace-pre-line leading-relaxed">{formData.facultyCoordinatorDetails}</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Faculty Coordinator/s</td>
+                        <td className="p-0">
+                          <table className="w-full text-xs border-collapse divide-y divide-black">
+                            <tbody>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold w-28">Full Name</td>
+                                <td className="p-1.5">{formData.facultyCoordinator || "Lakshmi S"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Department</td>
+                                <td className="p-1.5">{formData.department || "Department of Computer Applications, DSCASC"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Designation</td>
+                                <td className="p-1.5">Assistant Professor</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center align-top">13.</td>
                         <td className="border-r border-black p-2 font-bold align-top">Student Coordinator/s</td>
-                        <td className="p-2 whitespace-pre-line leading-relaxed">{formData.studentCoordinatorDetails}</td>
+                        <td className="p-0">
+                          <table className="w-full text-xs border-collapse divide-y divide-black">
+                            <tbody>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold w-28">Full Name</td>
+                                <td className="p-1.5">{formData.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi"}</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Department</td>
+                                <td className="p-1.5">P03CJ24S126119 III sem MCA</td>
+                              </tr>
+                              <tr className="divide-x divide-black">
+                                <td className="p-1.5 font-bold">Designation</td>
+                                <td className="p-1.5">-</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">14.</td>
-                        <td className="border-r border-black p-2 font-bold">Total Expenditure</td>
+                        <td className="border-r border-black p-2 font-bold">Total Expenditure (Details to be enclosed)</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
                             <div className="p-2 w-28 md:w-32 font-bold">{formData.totalExpenditure || "20,000/-"}</div>
@@ -1651,10 +1750,10 @@ const FacultyReports = () => {
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">16.</td>
-                        <td className="border-r border-black p-2 font-bold">Agenda of the Event</td>
+                        <td className="border-r border-black p-2 font-bold">Agenda of the Event (Attach a copy)</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
-                            <div className="p-2 w-28 md:w-32">{formData.agenda || "Training on AI/ML model analyis and research paper writing"}</div>
+                            <div className="p-2 w-28 md:w-32">{formData.agenda || "Training on AI/ML model analysis and research paper writing"}</div>
                             <div className="p-2 flex-1 flex items-center gap-2">
                               <span className="font-bold">17. &nbsp; Provide the link of the report uploaded on College Website</span>
                               <span className="font-bold">{formData.websiteReportLink || "No"}</span>
@@ -1677,12 +1776,12 @@ const FacultyReports = () => {
                       </tr>
                       <tr className="border-b border-black">
                         <td className="border-r border-black p-2 font-bold text-center">20.</td>
-                        <td className="border-r border-black p-2 font-bold">Certificates Printed?</td>
+                        <td className="border-r border-black p-2 font-bold">Certificates Printed? (Attach a copy**)</td>
                         <td className="p-0">
                           <div className="flex divide-x divide-black">
                             <div className="p-2 w-28 md:w-32 font-bold">{formData.certificatesPrinted || "No"}</div>
                             <div className="p-2 flex-1 flex items-center gap-2">
-                              <span className="font-bold">21. &nbsp; Feedback Collected?</span>
+                              <span className="font-bold">21. &nbsp; Feedback Collected? (Attach a copy**)</span>
                               <span className="font-bold">{formData.feedbackCollected || "Yes"}</span>
                             </div>
                           </div>
@@ -1695,7 +1794,7 @@ const FacultyReports = () => {
                           <div className="flex divide-x divide-black">
                             <div className="p-2 w-28 md:w-32 font-bold">{formData.attendanceAttached || "Yes"}</div>
                             <div className="p-2 flex-1 flex items-center gap-2">
-                              <span className="font-bold">23 &nbsp; Photographs of the Event</span>
+                              <span className="font-bold">23. &nbsp; Photographs of the Event</span>
                               <span className="font-bold">{formData.photographsAttached || "Attached"}</span>
                             </div>
                           </div>
@@ -1703,7 +1802,7 @@ const FacultyReports = () => {
                       </tr>
                       <tr>
                         <td className="border-r border-black p-2 font-bold text-center align-top">24.</td>
-                        <td className="border-r border-black p-2 font-bold align-top">Summary of the Event</td>
+                        <td className="border-r border-black p-2 font-bold align-top">Summary of the Event (Around 100 words)</td>
                         <td className="p-2 leading-relaxed text-justify">
                           {formData.summary?.slice(0, 560) || "The Department of Computer Applications – BCA conducted a FDP for faculty members by Nirmal Gaud..."}
                         </td>
@@ -1742,7 +1841,10 @@ const FacultyReports = () => {
                 </div>
 
                 {/* 5 Institutional Signatories at Bottom */}
-                <SignatoriesBlock currentStage={selectedEventObj?.approvalStage || "Event Coordinators"} />
+                <SignatoriesBlock
+                  currentStage={selectedEventObj?.approvalStage || "Event Coordinators"}
+                  stageSignatures={selectedEventObj?.stageSignatures}
+                />
               </div>
 
               {/* Annexure Cards */}

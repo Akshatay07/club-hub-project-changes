@@ -557,6 +557,250 @@ router.get("/attendance/:eventId/pdf", async (req, res) => {
   }
 });
 
+// Helper function to generate Student Feedback Form PDF
+async function renderStudentFeedbackPdf(event, res) {
+  const doc = new PDFDocument({ margin: 28, size: "A4", autoFirstPage: true });
+
+  res.setHeader("Content-Type", "application/pdf");
+  const sanitizedName = (event.name || "event").replace(/[^a-zA-Z0-9-_]/g, "_");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=feedback-form-${sanitizedName}.pdf`
+  );
+
+  doc.pipe(res);
+
+  const candidatePaths = [
+    path.resolve(process.cwd(), "dscasc_logo.png"),
+    path.resolve(process.cwd(), "backend", "dscasc_logo.png"),
+    path.resolve(process.cwd(), "..", "backend", "dscasc_logo.png"),
+    path.resolve(process.cwd(), "public", "dscasc_logo.png")
+  ];
+  const actualLogo = candidatePaths.find((p) => fs.existsSync(p) && fs.statSync(p).size > 0);
+
+  // Header Section
+  let startY = 24;
+  if (actualLogo) {
+    try {
+      doc.image(actualLogo, 35, startY, { width: 44 });
+    } catch (e) {
+      console.log("Logo load error:", e.message);
+    }
+  }
+
+  doc
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .fillColor("#000000")
+    .text("DAYANANDA SAGAR COLLEGE OF ARTS, SCIENCE AND COMMERCE", 40, startY + 2, {
+      align: "center",
+      width: 515,
+    });
+
+  doc
+    .fontSize(8)
+    .font("Helvetica")
+    .fillColor("#333333")
+    .text("College affiliated to Bangalore University (BU),", 40, startY + 16, {
+      align: "center",
+      width: 515,
+    });
+
+  doc
+    .fontSize(7.5)
+    .font("Helvetica")
+    .text("Approved by AICTE and UGC, Accredited by NAAC with 'B+' grade, and ISO 9001-2015 Certified Institution", 40, startY + 26, {
+      align: "center",
+      width: 515,
+    });
+
+  doc
+    .fontSize(10.5)
+    .font("Helvetica-Bold")
+    .fillColor("#000000")
+    .text("Internal Quality Assurance Cell", 40, startY + 37, {
+      align: "center",
+      width: 515,
+    });
+
+  doc
+    .fontSize(11.5)
+    .font("Helvetica-Bold")
+    .text("STUDENT FEEDBACK FORM", 40, startY + 52, {
+      align: "center",
+      width: 515,
+    });
+
+  let curY = startY + 74;
+
+  // Student & Activity Info Fields
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#000000");
+
+  doc.text("Name of the Student: ", 40, curY, { continued: true });
+  doc.font("Helvetica").text("________________________        ", { continued: true });
+  doc.font("Helvetica-Bold").text("UUCMS No. ", { continued: true });
+  doc.font("Helvetica").text("_______________________");
+
+  curY += 17;
+
+  doc.font("Helvetica-Bold").text("Courese: ", 40, curY, { continued: true });
+  doc.font("Helvetica").text("____________        ", { continued: true });
+  doc.font("Helvetica-Bold").text("Sem: ", { continued: true });
+  doc.font("Helvetica").text("________        ", { continued: true });
+  doc.font("Helvetica-Bold").text("Section: ", { continued: true });
+  doc.font("Helvetica").text("________");
+
+  curY += 17;
+
+  const activityName = event.name || "________________________________________________________";
+  doc.font("Helvetica-Bold").text("Name of Activity: ", 40, curY, { continued: true });
+  doc.font("Helvetica").text(activityName);
+
+  curY += 17;
+
+  const organizedBy = (event.clubId?.name || event.department || "") || "___________________________";
+  const eventDate = event.date || "_______________________";
+  doc.font("Helvetica-Bold").text("Organized by: ", 40, curY, { continued: true });
+  doc.font("Helvetica").text(`${organizedBy}        `, { continued: true });
+  doc.font("Helvetica-Bold").text("Date: ", { continued: true });
+  doc.font("Helvetica").text(eventDate);
+
+  curY += 17;
+
+  const resourcePerson = event.resourcePerson1?.name || "_____________________________";
+  doc.font("Helvetica-Bold").text("Resource Person: ", 40, curY, { continued: true });
+  doc.font("Helvetica").text(`${resourcePerson}        `, { continued: true });
+  doc.font("Helvetica-Bold").text("Programme/Class: ", { continued: true });
+  doc.font("Helvetica").text("____________");
+
+  curY += 21;
+
+  // Rating Scale
+  doc
+    .fontSize(8.5)
+    .font("Helvetica-Bold")
+    .text("Rating Scale: 5 – Excellent | 4 – Very Good | 3 – Good | 2 – Satisfactory | 1 – Needs Improvement", 40, curY);
+
+  curY += 17;
+
+  // Parameters Table Header
+  const colX = { no: 40, param: 65, p5: 380, p4: 415, p3: 450, p2: 485, p1: 520 };
+
+  doc.fontSize(9.5).font("Helvetica-Bold");
+  doc.text("No.", colX.no, curY);
+  doc.text("Feedback Parameter", colX.param, curY);
+  doc.text("5", colX.p5 + 2, curY);
+  doc.text("4", colX.p4 + 2, curY);
+  doc.text("3", colX.p3 + 2, curY);
+  doc.text("2", colX.p2 + 2, curY);
+  doc.text("1", colX.p1 + 2, curY);
+
+  curY += 16;
+
+  const parameters = [
+    "Relevance of the activity",
+    "Quality and clarity of content delivered",
+    "Effectiveness of the resource person/facilitator",
+    "Interaction and student participation",
+    "Achievement of the intended learning outcomes",
+    "Improvement in my knowledge/skills through the activity",
+    "Ability to apply the learning gained",
+    "Organization and coordination of the activity",
+    "Overall satisfaction with the activity",
+  ];
+
+  doc.font("Helvetica").fontSize(9);
+  parameters.forEach((param, idx) => {
+    doc.text(`${idx + 1}`, colX.no, curY);
+    doc.text(param, colX.param, curY, { width: 300 });
+
+    [colX.p5, colX.p4, colX.p3, colX.p2, colX.p1].forEach((x) => {
+      doc.rect(x, curY + 1, 9, 9).lineWidth(0.8).strokeColor("#000000").stroke();
+    });
+
+    curY += 18;
+  });
+
+  curY += 10;
+
+  // Learning Outcome / Student Response Section
+  doc.font("Helvetica-Bold").fontSize(10).text("Learning Outcome / Student Response", 40, curY);
+  curY += 16;
+
+  doc.font("Helvetica-Bold").fontSize(9).text("Important learning/skill gained from this activity:", 40, curY);
+  curY += 24;
+  doc.moveTo(40, curY).lineTo(550, curY).lineWidth(0.5).strokeColor("#aaaaaa").stroke();
+  curY += 16;
+
+  doc.font("Helvetica-Bold").fontSize(9).text("Suggestion for improvement / future activity:", 40, curY);
+  curY += 24;
+  doc.moveTo(40, curY).lineTo(550, curY).lineWidth(0.5).strokeColor("#aaaaaa").stroke();
+  curY += 18;
+
+  doc.font("Helvetica-Bold").fontSize(9).text("Would you recommend similar activities in future? ", 40, curY);
+  doc.font("Helvetica").fontSize(9).text("[  ] Yes     [  ] No", 270, curY);
+  curY += 18;
+
+  doc.font("Helvetica-Bold").fontSize(9).text("Overall Rating: ", 40, curY);
+  doc.font("Helvetica").fontSize(9).text("[  ] Excellent   [  ] Very Good   [  ] Good   [  ] Satisfactory   [  ] Needs Improvement", 110, curY);
+  curY += 24;
+
+  doc.font("Helvetica-Bold").fontSize(9).text("Signature of the Student: ___________________________", 40, curY);
+
+  // Footer (Well within single page limits)
+  const footerY = 755;
+  doc
+    .fontSize(8)
+    .font("Helvetica-Bold")
+    .fillColor("#000000")
+    .text("Postal Address: 1st Stage, Kumaraswamy Layout, Bengaluru, Karnataka 560111", 40, footerY, { align: "center", width: 515 });
+
+  doc
+    .fontSize(8)
+    .font("Helvetica")
+    .text("Ph: 080-42161767        Email ID: principal-dscasc@dayanandasagar.edu", 40, footerY + 11, { align: "center", width: 515 });
+
+  doc
+    .fontSize(8)
+    .font("Helvetica")
+    .text("Website: www.dscasc.edu.in", 40, footerY + 22, { align: "center", width: 515 });
+
+  doc.end();
+}
+
+// Download printable blank Student Feedback Form PDF
+router.get("/attendance/:eventId/feedback-pdf", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).populate("clubId", "name");
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    await renderStudentFeedbackPdf(event, res);
+  } catch (err) {
+    console.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
+
+router.get("/events/:eventId/feedback-pdf", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).populate("clubId", "name");
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    await renderStudentFeedbackPdf(event, res);
+  } catch (err) {
+    console.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+});
+
 // ================= POPULATED ATTENDANCE RECORDS PDF =================
 router.get("/attendance/:eventId/records-pdf", async (req, res) => {
   try {

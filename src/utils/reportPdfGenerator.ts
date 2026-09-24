@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { DSCASC_LOGO_PNG_BASE64, IIC_LOGO_PNG_BASE64 } from "./reportLogos";
-import { signaturesConfig, getProcessedSignatureBase64 } from "./signatureLoader";
+import { signaturesConfig, getProcessedSignatureBase64, getStoredGlobalSignature } from "./signatureLoader";
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const clean = base64.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
@@ -299,6 +299,9 @@ export interface ReportData {
   name: string;
   type?: string;
   department?: string;
+  unitName?: string;
+  clubName?: string;
+  alignedSDG?: string;
   reportDate?: string;
   date?: string;
   time?: string;
@@ -311,6 +314,9 @@ export interface ReportData {
     name?: string;
     designation?: string;
     organization?: string;
+    specialization?: string;
+    mobile?: string;
+    email?: string;
   };
   resourcePerson1Topics?: string;
 
@@ -318,6 +324,9 @@ export interface ReportData {
     name?: string;
     designation?: string;
     organization?: string;
+    specialization?: string;
+    mobile?: string;
+    email?: string;
   };
   resourcePerson2Topics?: string;
 
@@ -372,6 +381,7 @@ export interface ReportData {
     originalName?: string;
     fileName?: string;
   }>;
+  stageSignatures?: Record<string, string> | Map<string, string>;
 }
 
 // Convert image URL to base64 for jsPDF
@@ -379,6 +389,7 @@ async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.setAttribute("crossOrigin", "anonymous");
+
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
@@ -386,7 +397,8 @@ async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/jpeg", 0.95));
+        const dataUrl = canvas.toDataURL("image/jpeg");
+        resolve(dataUrl);
       } else {
         resolve("");
       }
@@ -408,7 +420,11 @@ async function fetchArrayBuffer(url: string): Promise<ArrayBuffer | null> {
   }
 }
 
-export async function generateInstitutionalReportPdf(report: ReportData): Promise<{ save: (filename: string) => void }> {
+export async function generateInstitutionalReportPdf(report: ReportData): Promise<{
+  save: (filename: string) => void;
+  getBlobUrl: () => string;
+  getBlob: () => Blob;
+}> {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
@@ -421,23 +437,28 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   const marginRight = 38;
   const contentWidth = pageWidth - marginLeft - marginRight; // 519.28 pt
 
-  let curY = 36;
+  let curY = 32;
 
-  // Set font family to Times (standard serif matching institutional document)
   const setFont = (style: "normal" | "bold" | "italic" = "normal", size: number = 9) => {
     doc.setFont("times", style);
     doc.setFontSize(size);
     doc.setTextColor(0, 0, 0);
   };
 
-  // Helper to render institutional header
+  // Render header with outer rectangle box and metadata
   const renderHeader = (isFirstPage: boolean = true) => {
-    const headerTop = 28;
+    const headerTop = 26;
+    const headerHeight = 64;
 
-    // Left Logo: Authentic DSCASC Crest
+    // Outer border for header box
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.8);
+    doc.rect(marginLeft, headerTop, contentWidth, headerHeight);
+
+    // Left Logo: DSCASC Crest
     if (DSCASC_LOGO_PNG_BASE64) {
       try {
-        doc.addImage(DSCASC_LOGO_PNG_BASE64, "PNG", marginLeft, headerTop, 54, 54);
+        doc.addImage(DSCASC_LOGO_PNG_BASE64, "PNG", marginLeft + 8, headerTop + 7, 50, 50);
       } catch (e) {
         console.warn("Logo add error:", e);
       }
@@ -446,61 +467,63 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     // Right Logo: Authentic IIC Logo
     if (IIC_LOGO_PNG_BASE64) {
       try {
-        doc.addImage(IIC_LOGO_PNG_BASE64, "PNG", pageWidth - marginRight - 98, headerTop + 4, 98, 42);
+        doc.addImage(IIC_LOGO_PNG_BASE64, "PNG", pageWidth - marginRight - 88, headerTop + 10, 80, 42);
       } catch (e) {
         console.warn("IIC Logo add error:", e);
       }
     }
 
-    // Institution Title in Times-Bold
-    setFont("bold", 12.5);
+    // Centered Title Text
+    setFont("bold", 12);
     doc.text(
       "Dayananda Sagar College of Arts, Science, and Commerce",
       pageWidth / 2,
-      headerTop + 14,
+      headerTop + 16,
       { align: "center" }
     );
 
-    setFont("bold", 11);
-    doc.text("Internal Quality Assurance Cell", pageWidth / 2, headerTop + 27, {
+    setFont("bold", 10.5);
+    doc.text("Internal Quality Assurance Cell", pageWidth / 2, headerTop + 30, {
       align: "center",
     });
 
+    const unitStr = `Unit Name: ${report.unitName || report.clubName || "__________________________"}`;
+    setFont("bold", 9.5);
+    doc.text(unitStr, pageWidth / 2, headerTop + 46, { align: "center" });
+
     if (isFirstPage) {
-      const eventType = report.type || "FDP";
-      const titleLine = `${eventType} on “${report.name || "Event Title"}”`;
-      const titleLines = doc.splitTextToSize(titleLine, contentWidth - 210);
-      setFont("bold", 10.5);
-      doc.text(titleLines, pageWidth / 2, headerTop + 40, { align: "center" });
+      const subY = headerTop + headerHeight + 14;
 
-      const afterTitleY = headerTop + 40 + titleLines.length * 12 + 8;
-
-      // Meta Line: Department & Date (Times-Bold)
-      setFont("bold", 10);
-      doc.text(`Department: ${report.department || "BCA"}`, marginLeft, afterTitleY);
+      const deptDisplay = report.department && report.department.includes('/')
+        ? report.department
+        : `MCA / MBA / M. Com / Bcom / BBA / BCA / B.Sc.${report.department ? ` (${report.department})` : ""}`;
       doc.text(
-        `Date of Report: ${report.reportDate || "31-01-2026"}`,
+        `Department*: ${deptDisplay}`,
+        marginLeft,
+        subY
+      );
+      doc.text(
+        `Date of Report: ${report.reportDate || report.date || ""}`,
         pageWidth - marginRight,
-        afterTitleY,
+        subY,
         { align: "right" }
       );
 
-      return afterTitleY + 8;
+      return subY + 8;
     }
 
-    return headerTop + 60;
+    return headerTop + headerHeight + 12;
   };
 
   curY = renderHeader(true);
 
-  // Table Column Definitions
+  // Column definitions
   const col1W = 28; // Sl. No.
-  const col2W = 108; // Particulars
-  const col3W = contentWidth - col1W - col2W; // 383.28 pt
+  const col2W = 112; // Particulars
+  const col3W = contentWidth - col1W - col2W; // 379.28 pt
 
-  // Table Header Row
   const drawTableHeader = (y: number) => {
-    const h = 24;
+    const h = 22;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.8);
 
@@ -508,19 +531,25 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     doc.rect(marginLeft + col1W, y, col2W, h);
     doc.rect(marginLeft + col1W + col2W, y, col3W, h);
 
-    setFont("bold", 9.5);
-    doc.text("Sl.", marginLeft + col1W / 2, y + 10, { align: "center" });
-    doc.text("No.", marginLeft + col1W / 2, y + 19, { align: "center" });
-
-    doc.text("Particulars", marginLeft + col1W + 6, y + 15);
-    doc.text("Event related Details", marginLeft + col1W + col2W + 6, y + 15);
+    setFont("bold", 9);
+    doc.text("Sl. No.", marginLeft + col1W / 2, y + 14, { align: "center" });
+    doc.text("Particulars", marginLeft + col1W + 5, y + 14);
+    doc.text("Event related Details", marginLeft + col1W + col2W + 5, y + 14);
 
     return y + h;
   };
 
   curY = drawTableHeader(curY);
 
-  // Generic Simple Row Renderer
+  const checkPageBreak = (neededHeight: number) => {
+    if (curY + neededHeight > pageHeight - 65) {
+      doc.addPage();
+      curY = renderHeader(false);
+      curY = drawTableHeader(curY);
+    }
+  };
+
+  // Row Renderer Helpers
   const drawSimpleRow = (
     slNo: string,
     particulars: string,
@@ -530,18 +559,11 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     setFont("normal", 9);
     const linesDetails = Array.isArray(details)
       ? details
-      : doc.splitTextToSize(details || "-", col3W - 12);
+      : doc.splitTextToSize(details || "-", col3W - 10);
+    const particularsLines = doc.splitTextToSize(particulars, col2W - 8);
 
-    const particularsLines = doc.splitTextToSize(particulars, col2W - 10);
-    const textHeight = Math.max(linesDetails.length, particularsLines.length) * 11;
-    const rowH = Math.max(textHeight + 8, 18);
-
-    // Page break check
-    if (curY + rowH > pageHeight - 65) {
-      doc.addPage();
-      curY = renderHeader(false);
-      curY = drawTableHeader(curY);
-    }
+    const rowH = Math.max(Math.max(linesDetails.length, particularsLines.length) * 11 + 8, 18);
+    checkPageBreak(rowH);
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.6);
@@ -550,22 +572,55 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     doc.rect(marginLeft + col1W, curY, col2W, rowH);
     doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH);
 
-    // Sl No
     setFont("bold", 9);
     doc.text(slNo, marginLeft + col1W / 2, curY + 12, { align: "center" });
+    doc.text(particularsLines, marginLeft + col1W + 4, curY + 12);
 
-    // Particulars
-    setFont("bold", 9);
-    doc.text(particularsLines, marginLeft + col1W + 5, curY + 12);
-
-    // Details
     setFont(isBoldDetails ? "bold" : "normal", 9);
     doc.text(linesDetails, marginLeft + col1W + col2W + 5, curY + 12);
 
     curY += rowH;
   };
 
-  // Row 3 & 4: Date of Conduction + 4. Time :
+  // Row 2: Title of the Event + Aligned SDG Goal(s) Box
+  const drawTitleAndSDGRow = (titleVal: string, sdgVal: string) => {
+    const leftTitleW = 230;
+    const sdgBoxW = col3W - leftTitleW;
+
+    setFont("bold", 9);
+    const titleLines = doc.splitTextToSize(titleVal || "", leftTitleW - 10);
+    const sdgLines = doc.splitTextToSize(sdgVal || "", sdgBoxW - 65);
+    const rowH = Math.max(Math.max(titleLines.length, sdgLines.length + 1) * 11 + 10, 28);
+
+    checkPageBreak(rowH);
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.6);
+
+    doc.rect(marginLeft, curY, col1W, rowH);
+    doc.rect(marginLeft + col1W, curY, col2W, rowH);
+    doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH);
+
+    const sdgX = marginLeft + col1W + col2W + leftTitleW;
+    doc.rect(sdgX, curY, sdgBoxW, rowH);
+
+    setFont("bold", 9);
+    doc.text("2.", marginLeft + col1W / 2, curY + 12, { align: "center" });
+    doc.text("Title of the Event", marginLeft + col1W + 4, curY + 12);
+
+    doc.text(titleLines, marginLeft + col1W + col2W + 5, curY + 12);
+
+    setFont("bold", 8.5);
+    doc.text("Aligned SDG", sdgX + 4, curY + 10);
+    doc.text("Goal(s)", sdgX + 4, curY + 20);
+
+    setFont("normal", 8.5);
+    doc.text(sdgLines.length > 0 ? sdgLines : "-", sdgX + 60, curY + 12);
+
+    curY += rowH;
+  };
+
+  // Row 3 & 4: Date of Conduction + 4. Time
   const drawDateAndTimeRow = (
     sl1: string,
     part1: string,
@@ -574,8 +629,8 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     part2: string,
     timeVal: string
   ) => {
-    const leftW = 165;
-    const midLabelW = 65;
+    const leftW = 160;
+    const midLabelW = 55;
     const rightW = col3W - leftW - midLabelW;
 
     setFont("normal", 9);
@@ -583,11 +638,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     const timeLines = doc.splitTextToSize(timeVal || "-", rightW - 8);
     const rowH = Math.max(Math.max(dateLines.length, timeLines.length) * 11 + 8, 18);
 
-    if (curY + rowH > pageHeight - 65) {
-      doc.addPage();
-      curY = renderHeader(false);
-      curY = drawTableHeader(curY);
-    }
+    checkPageBreak(rowH);
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.6);
@@ -598,25 +649,97 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     doc.rect(marginLeft + col1W + col2W + leftW, curY, midLabelW, rowH);
     doc.rect(marginLeft + col1W + col2W + leftW + midLabelW, curY, rightW, rowH);
 
-    // Sl 3
     setFont("bold", 9);
     doc.text(sl1, marginLeft + col1W / 2, curY + 12, { align: "center" });
-    doc.text(part1, marginLeft + col1W + 5, curY + 12);
+    doc.text(part1, marginLeft + col1W + 4, curY + 12);
 
-    // Date Val
     setFont("normal", 9);
     doc.text(dateLines, marginLeft + col1W + col2W + 5, curY + 12);
 
-    // 4. Time :
     const midX = marginLeft + col1W + col2W + leftW;
     setFont("bold", 9);
-    doc.text(sl2, midX + 6, curY + 12);
-    doc.text(part2, midX + 22, curY + 12);
+    doc.text(sl2, midX + 4, curY + 12);
+    doc.text(part2, midX + 18, curY + 12);
 
-    // Time Val
     const rightX = midX + midLabelW;
-    setFont("bold", 9);
+    setFont("normal", 9);
     doc.text(timeLines, rightX + 5, curY + 12);
+
+    curY += rowH;
+  };
+
+  // Resource Person Grid Row (3 rows x 2 cols)
+  const drawResourcePersonRow = (slNo: string, partLabel: string, rpObj: any) => {
+    const gridRowH = 16;
+    const rowH = gridRowH * 3;
+
+    checkPageBreak(rowH);
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.6);
+
+    doc.rect(marginLeft, curY, col1W, rowH);
+    doc.rect(marginLeft + col1W, curY, col2W, rowH);
+    doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH);
+
+    setFont("bold", 9);
+    doc.text(slNo, marginLeft + col1W / 2, curY + 12, { align: "center" });
+    const pLines = doc.splitTextToSize(partLabel, col2W - 8);
+    doc.text(pLines, marginLeft + col1W + 4, curY + 12);
+
+    const c1LabelW = 60;
+    const c1ValW = 115;
+    const c2LabelW = 68;
+    const c2ValW = col3W - (c1LabelW + c1ValW + c2LabelW);
+
+    const baseX = marginLeft + col1W + col2W;
+
+    doc.rect(baseX, curY, c1LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW, curY, c1ValW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW, curY, c2LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW + c2LabelW, curY, c2ValW, gridRowH);
+
+    doc.rect(baseX, curY + gridRowH, c1LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW, curY + gridRowH, c1ValW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW, curY + gridRowH, c2LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW + c2LabelW, curY + gridRowH, c2ValW, gridRowH);
+
+    doc.rect(baseX, curY + gridRowH * 2, c1LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW, curY + gridRowH * 2, c1ValW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW, curY + gridRowH * 2, c2LabelW, gridRowH);
+    doc.rect(baseX + c1LabelW + c1ValW + c2LabelW, curY + gridRowH * 2, c2ValW, gridRowH);
+
+    setFont("bold", 8.5);
+    doc.text("Name", baseX + 4, curY + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.name || "-", baseX + c1LabelW + 4, curY + 11, { maxWidth: c1ValW - 6 });
+
+    setFont("bold", 8.5);
+    doc.text("Organization", baseX + c1LabelW + c1ValW + 4, curY + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.organization || "-", baseX + c1LabelW + c1ValW + c2LabelW + 4, curY + 11, { maxWidth: c2ValW - 6 });
+
+    const r2Y = curY + gridRowH;
+    setFont("bold", 8.5);
+    doc.text("Designation", baseX + 4, r2Y + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.designation || "-", baseX + c1LabelW + 4, r2Y + 11, { maxWidth: c1ValW - 6 });
+
+    setFont("bold", 8.5);
+    doc.text("Specialization", baseX + c1LabelW + c1ValW + 4, r2Y + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.specialization || "-", baseX + c1LabelW + c1ValW + c2LabelW + 4, r2Y + 11, { maxWidth: c2ValW - 6 });
+
+    const r3Y = curY + gridRowH * 2;
+    setFont("bold", 8.5);
+    doc.text("Mobile No.", baseX + 4, r3Y + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.mobile || "-", baseX + c1LabelW + 4, r3Y + 11, { maxWidth: c1ValW - 6 });
+
+    setFont("bold", 8.5);
+    doc.text("Email ID", baseX + c1LabelW + c1ValW + 4, r3Y + 11);
+    setFont("normal", 8.5);
+    doc.text(rpObj?.email || "-", baseX + c1LabelW + c1ValW + c2LabelW + 4, r3Y + 11, { maxWidth: c2ValW - 6 });
 
     curY += rowH;
   };
@@ -628,19 +751,17 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     internalVal: string | number,
     externalVal: string | number
   ) => {
-    const rowH = 18;
-    if (curY + rowH > pageHeight - 65) {
-      doc.addPage();
-      curY = renderHeader(false);
-      curY = drawTableHeader(curY);
-    }
+    setFont("bold", 9);
+    const pLines = doc.splitTextToSize(particulars, col2W - 8);
+    const rowH = Math.max(pLines.length * 11 + 6, 26);
+    checkPageBreak(rowH);
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.6);
 
-    const intLabelW = 65;
+    const intLabelW = 60;
     const intValW = 60;
-    const extLabelW = 65;
+    const extLabelW = 60;
     const extValW = col3W - (intLabelW + intValW + extLabelW);
 
     doc.rect(marginLeft, curY, col1W, rowH);
@@ -652,23 +773,98 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
 
     setFont("bold", 9);
     doc.text(slNo, marginLeft + col1W / 2, curY + 12, { align: "center" });
-    doc.text(particulars, marginLeft + col1W + 5, curY + 12);
+    doc.text(pLines, marginLeft + col1W + 4, curY + 11);
 
-    // Internal Label & Val
-    doc.text("Internal:", marginLeft + col1W + col2W + 5, curY + 12);
-    setFont("bold", 9);
-    doc.text(String(internalVal ?? "-"), marginLeft + col1W + col2W + intLabelW + 6, curY + 12);
+    const midY = curY + rowH / 2 + 3;
+    doc.text("Internal:", marginLeft + col1W + col2W + 4, midY);
+    setFont("normal", 9);
+    doc.text(String(internalVal ?? "-"), marginLeft + col1W + col2W + intLabelW + 5, midY);
 
-    // External Label & Val
     const extX = marginLeft + col1W + col2W + intLabelW + intValW;
     setFont("bold", 9);
-    doc.text("External:", extX + 5, curY + 12);
-    doc.text(String(externalVal ?? "NIL"), extX + extLabelW + 6, curY + 12);
+    doc.text("External:", extX + 4, midY);
+    setFont("normal", 9);
+    doc.text(String(externalVal ?? "NIL"), extX + extLabelW + 5, midY);
 
     curY += rowH;
   };
 
-  // Row for Split Particulars (e.g. 14 & 15, 16 & 17, 18 & 19, 20 & 21, 22 & 23)
+  // Coordinator Grid Row (Full Name, Department, Designation)
+  const drawCoordinatorRow = (slNo: string, partLabel: string, rawVal: string, detailsObj?: any) => {
+    const subH = 16;
+    const rowH = subH * 3;
+
+    checkPageBreak(rowH);
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.6);
+
+    doc.rect(marginLeft, curY, col1W, rowH);
+    doc.rect(marginLeft + col1W, curY, col2W, rowH);
+    doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH);
+
+    setFont("bold", 9);
+    doc.text(slNo, marginLeft + col1W / 2, curY + 12, { align: "center" });
+    const pLines = doc.splitTextToSize(partLabel, col2W - 8);
+    doc.text(pLines, marginLeft + col1W + 4, curY + 12);
+
+    const baseX = marginLeft + col1W + col2W;
+    const lblW = 65;
+    const valW = col3W - lblW;
+
+    doc.rect(baseX, curY, lblW, subH);
+    doc.rect(baseX + lblW, curY, valW, subH);
+
+    doc.rect(baseX, curY + subH, lblW, subH);
+    doc.rect(baseX + lblW, curY + subH, valW, subH);
+
+    doc.rect(baseX, curY + subH * 2, lblW, subH);
+    doc.rect(baseX + lblW, curY + subH * 2, valW, subH);
+
+    let nameVal = detailsObj?.name || "";
+    let deptVal = detailsObj?.department || "";
+    let desigVal = detailsObj?.designation || "";
+
+    if (!nameVal && !deptVal && !desigVal) {
+      const rawStr = rawVal || "";
+      const lines = rawStr.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (/^name\s*:/i.test(trimmed)) {
+          nameVal = trimmed.replace(/^name\s*:/i, "").trim();
+        } else if (/^department\s*:/i.test(trimmed) || /^dept\s*:/i.test(trimmed)) {
+          deptVal = trimmed.replace(/^department\s*:/i, "").replace(/^dept\s*:/i, "").trim();
+        } else if (/^designation\s*:/i.test(trimmed) || /^desig\s*:/i.test(trimmed)) {
+          desigVal = trimmed.replace(/^designation\s*:/i, "").replace(/^desig\s*:/i, "").trim();
+        } else if (!nameVal) {
+          nameVal = trimmed;
+        } else if (!deptVal) {
+          deptVal = trimmed;
+        } else if (!desigVal) {
+          desigVal = trimmed;
+        }
+      }
+    }
+
+    setFont("bold", 8.5);
+    doc.text("Full Name", baseX + 4, curY + 11);
+    setFont("normal", 8.5);
+    doc.text(nameVal || "-", baseX + lblW + 4, curY + 11, { maxWidth: valW - 6 });
+
+    setFont("bold", 8.5);
+    doc.text("Department", baseX + 4, curY + subH + 11);
+    setFont("normal", 8.5);
+    doc.text(deptVal || "-", baseX + lblW + 4, curY + subH + 11, { maxWidth: valW - 6 });
+
+    setFont("bold", 8.5);
+    doc.text("Designation", baseX + 4, curY + subH * 2 + 11);
+    setFont("normal", 8.5);
+    doc.text(desigVal || "-", baseX + lblW + 4, curY + subH * 2 + 11, { maxWidth: valW - 6 });
+
+    curY += rowH;
+  };
+
+  // Subdivided row helper (e.g. 14 & 15, 16 & 17, 18 & 19, 20 & 21, 22 & 23)
   const drawSubdividedRow = (
     sl1: string,
     part1: string,
@@ -679,7 +875,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     val1Width: number = 95
   ) => {
     const leftValW = val1Width;
-    const rightPartW = 160;
+    const rightPartW = 155;
     const rightValW = col3W - leftValW - rightPartW;
 
     setFont("normal", 9);
@@ -691,11 +887,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     const maxLines = Math.max(p1Lines.length, v1Lines.length, p2Lines.length, v2Lines.length);
     const rowH = Math.max(maxLines * 11 + 8, 18);
 
-    if (curY + rowH > pageHeight - 65) {
-      doc.addPage();
-      curY = renderHeader(false);
-      curY = drawTableHeader(curY);
-    }
+    checkPageBreak(rowH);
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.6);
@@ -706,21 +898,21 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     doc.rect(marginLeft + col1W + col2W + leftValW, curY, rightPartW, rowH);
     doc.rect(marginLeft + col1W + col2W + leftValW + rightPartW, curY, rightValW, rowH);
 
-    // Left Side
+    // Left
     setFont("bold", 9);
     doc.text(sl1, marginLeft + col1W / 2, curY + 12, { align: "center" });
-    doc.text(p1Lines, marginLeft + col1W + 5, curY + 12);
-    setFont("bold", 9);
+    doc.text(p1Lines, marginLeft + col1W + 4, curY + 12);
+    setFont("normal", 9);
     doc.text(v1Lines, marginLeft + col1W + col2W + 5, curY + 12);
 
-    // Right Side
+    // Right
     const midX = marginLeft + col1W + col2W + leftValW;
     setFont("bold", 9);
-    doc.text(sl2, midX + 5, curY + 12);
+    doc.text(sl2, midX + 4, curY + 12);
     doc.text(p2Lines, midX + 18, curY + 12);
 
     const rightX = midX + rightPartW;
-    setFont("bold", 9);
+    setFont("normal", 9);
     doc.text(v2Lines, rightX + 5, curY + 12);
 
     curY += rowH;
@@ -730,28 +922,34 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   drawSimpleRow("1.", "Event*", report.type || "Faculty Development Program", true);
 
   // 2. Title of the Event
-  drawSimpleRow("2.", "Title of the Event", `“${report.name || ""}”`, true);
+  drawTitleAndSDGRow(`“${report.name || ""}”`, report.alignedSDG || "");
 
-  // 3 & 4: Date of Conduction | 4. Time :
+  // 3 & 4: Date of Conduction | 4. Time
   drawDateAndTimeRow(
     "3.",
     "Date of Conduction",
-    report.date || "22nd ,24th ,28th, 30th ,31st Jan 2026",
+    report.date || "",
     "4.",
-    "Time :",
-    report.time || "2:00 PM to 4:00 PM"
+    "Time",
+    report.time || ""
   );
 
   // 5. Venue
-  drawSimpleRow("5.", "Venue", report.venue || report.location || "Online Google meet");
+  drawSimpleRow("5.", "Venue", report.venue || report.location || "");
 
-  // 6. Resource Person 1 Details
-  const rp1Lines = [
-    report.resourcePerson1?.name || "Nirmal Gaud",
-    report.resourcePerson1?.designation || "Founder & CEO",
-    report.resourcePerson1?.organization || "Cognitia Research - ThinkAI",
-  ].filter(Boolean);
-  drawSimpleRow("6.", "Resource Person 1 Details", rp1Lines, true);
+  // 6. Resource Person 1 Details (Profile to be enclosed)
+  drawResourcePersonRow(
+    "6.",
+    "Resource Person 1 Details\n(Profile to be enclosed)",
+    report.resourcePerson1 || {
+      name: "Nirmal Gaud",
+      designation: "Founder & CEO",
+      organization: "Cognitia Research - ThinkAI",
+      specialization: "AI & ML Modeling",
+      mobile: "-",
+      email: "-",
+    }
+  );
 
   // 7. Topics Covered
   drawSimpleRow(
@@ -761,16 +959,18 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       "Mathematics behind AI/ML model with tips and tools to write Research paper"
   );
 
-  // 8. Resource Person 2 Details
-  const rp2Lines = [
-    report.resourcePerson2?.name,
-    report.resourcePerson2?.designation,
-    report.resourcePerson2?.organization,
-  ].filter(Boolean);
-  drawSimpleRow(
+  // 8. Resource Person 2 Details (Profile to be enclosed)
+  drawResourcePersonRow(
     "8.",
-    "Resource Person 2 Details",
-    rp2Lines.length > 0 && rp2Lines[0] !== "NA" ? rp2Lines : "NA"
+    "Resource Person 2 Details\n(Profile to be enclosed)",
+    report.resourcePerson2 || {
+      name: "NA",
+      designation: "NA",
+      organization: "NA",
+      specialization: "NA",
+      mobile: "NA",
+      email: "NA",
+    }
   );
 
   // 9. Topics Covered
@@ -779,7 +979,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   // 10. No. Faculty Participants
   drawParticipantsRow(
     "10.",
-    "No. Faculty Participants",
+    "No. Faculty Participants\n(Enclose a copy of names with signatures)",
     report.facultyParticipants?.internal ?? "22",
     report.facultyParticipants?.external ?? "NIL"
   );
@@ -787,28 +987,30 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   // 11. No. Student Participants
   drawParticipantsRow(
     "11.",
-    "No. Student Participants",
+    "No. Student Participants\n(Enclose a copy of names with signatures)",
     report.studentParticipants?.internal ?? "---",
     report.studentParticipants?.external ?? "NIL"
   );
 
-  // 12. Faculty Coordinator
-  const fcDetails =
-    report.facultyCoordinatorDetails ||
-    `Name: ${report.facultyCoordinator || "Lakshmi S"}\nDesignation : Assistant Professor\nDepartment: Department of Computer Applications, DSCASC.`;
-  drawSimpleRow("12.", "Faculty Coordinator", fcDetails.split("\n"));
+  // 12. Faculty Coordinator/s
+  drawCoordinatorRow(
+    "12.",
+    "Faculty Coordinator/s",
+    report.facultyCoordinatorDetails || report.facultyCoordinator || "Lakshmi S"
+  );
 
   // 13. Student Coordinator/s
-  const scDetails =
-    report.studentCoordinatorDetails ||
-    `${report.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi"}\nP03CJ24S126119 III sem MCA`;
-  drawSimpleRow("13.", "Student Coordinator/s", scDetails.split("\n"));
+  drawCoordinatorRow(
+    "13.",
+    "Student Coordinator/s",
+    report.studentCoordinatorDetails || report.studentCoordinator || "Yadavacharya Jayacharya Nagasampagi"
+  );
 
   // 14 & 15: Total Expenditure | Sponsors and Amount (if any)
   drawSubdividedRow(
     "14.",
-    "Total Expenditure",
-    report.totalExpenditure ? `${report.totalExpenditure}` : "20,000/-",
+    "Total Expenditure\n(Details to be enclosed)",
+    report.totalExpenditure ? `${report.totalExpenditure}` : "-",
     "15.",
     "Sponsors and Amount (if any)",
     report.sponsors || "NA",
@@ -818,8 +1020,8 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   // 16 & 17: Agenda of the Event | Provide link of report on College Website
   drawSubdividedRow(
     "16.",
-    "Agenda of the Event",
-    report.agenda || "Training on AI/ML model analyis and research paper writing",
+    "Agenda of the Event\n(Attach a copy)",
+    report.agenda || "-",
     "17.",
     "Provide the link of the report uploaded on College Website",
     report.websiteReportLink || "No",
@@ -829,7 +1031,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   // 18 & 19: Social Media Links | Report sent to Newspapers?
   drawSubdividedRow(
     "18.",
-    "Social Media Links",
+    "Social Media Links\n(Provide the links of the report uploaded on Social Media)",
     report.socialMediaLinks || "---",
     "19.",
     "Report sent to Newspapers? If yes, provide cuttings/images:",
@@ -840,10 +1042,10 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   // 20 & 21: Certificates Printed? | Feedback Collected?
   drawSubdividedRow(
     "20.",
-    "Certificates Printed?",
+    "Certificates Printed?\n(Attach a copy**)",
     report.certificatesPrinted ? String(report.certificatesPrinted) : "No",
     "21.",
-    "Feedback Collected?",
+    "Feedback Collected?\n(Attach a copy**)",
     report.feedbackCollected ? String(report.feedbackCollected) : "Yes",
     95
   );
@@ -854,27 +1056,29 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     "Attendance Sheet Attached?*",
     report.attendanceAttached ? String(report.attendanceAttached) : "Yes",
     "23.",
-    "Photographs of the Event",
-    report.photographsAttached || "Attached",
+    "Photographs of the Event\n(About 5 relevant, clear, and appropriate photos with precise caption. The jpg files need to be attached)",
+    report.photographsAttached ? String(report.photographsAttached) : "Attached",
     95
   );
 
   // 24. Summary of the Event
-  const defaultSummary =
-    "The Department of Computer Applications – BCA conducted a FDP for faculty members by Nirmal Gaud. The FDP was on “Computational Mathematics for AI & Machine Learning: Modeling, Analysis, and Research Paper Writing”. Day 1 to Day 5 the concepts like introduced to the mathematical foundations underlying AI and ML models, with a focus on deep learning architectures such as DenseNet, and then the session included discussions on selected research papers, highlighting model design, datasets, and implementation aspects. Practical exposure was provided through code walkthroughs and dataset analysis to bridge theory and application. In addition, participants were trained in using Overleaf for academic writing, enabling them to collaboratively prepare and format research papers efficiently according to standard publication guidelines. The faculty where also appraised of journal quartile and publications. Excellent feedback for FDP was received from faculty members.";
+  const defaultSummaryPrompt =
+    "This text needs to be uploaded on our website/social media or sent to print media with the photos you have attached. You need to keep this thing in mind while preparing the text and selecting the photographs.";
 
-  const fullSummary = report.summary || defaultSummary;
+  const userSummary = report.summary || "";
+  const fullSummaryText = userSummary
+    ? `${userSummary}\n\n[Note: ${defaultSummaryPrompt}]`
+    : defaultSummaryPrompt;
+
   setFont("normal", 9);
-  const summaryLines = doc.splitTextToSize(fullSummary, col3W - 12);
+  const summaryLines = doc.splitTextToSize(fullSummaryText, col3W - 10);
 
-  // Available lines on Page 1
   const remainingSpace = pageHeight - 45 - curY;
   const linesThatFit = Math.max(Math.floor((remainingSpace - 12) / 11), 3);
 
   const linesPage1 = summaryLines.slice(0, linesThatFit);
   const linesPage2 = summaryLines.slice(linesThatFit);
 
-  // Draw Page 1 chunk
   const rowH1 = linesPage1.length * 11 + 8;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.6);
@@ -884,25 +1088,48 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
 
   setFont("bold", 9);
   doc.text("24.", marginLeft + col1W / 2, curY + 12, { align: "center" });
-  doc.text("Summary of the Event", marginLeft + col1W + 5, curY + 12);
+  const sumLabelLines = doc.splitTextToSize("Summary of the Event\n(Around 100 words)", col2W - 8);
+  doc.text(sumLabelLines, marginLeft + col1W + 4, curY + 12);
+
   setFont("normal", 9);
   doc.text(linesPage1, marginLeft + col1W + col2W + 5, curY + 12);
+  curY += rowH1;
 
-  // ================= PAGE 2 (CONTINUATION & 5 SIGNATORIES) =================
+  // Render Footer Note Block below Table
+  setFont("bold", 8);
+  doc.text("Note:", marginLeft, curY + 8);
+  setFont("normal", 7.5);
+  const noteText =
+    "* Seminar / Webinar / Workshop / Symposium / Conference / Cultural Fest / Quiz / Sports / Literature Fest, etc. ** Format Copy need to be attached and hard copy need to be filed, # Original sheet need to be filed and scanned copy should be attached. *Department, please select the department";
+  const noteLines = doc.splitTextToSize(noteText, contentWidth - 30);
+  doc.text(noteLines, marginLeft + 26, curY + 8);
+
+  const noteY = curY + 8 + noteLines.length * 9.5 + 2;
+  setFont("bold", 8);
+  doc.text("PS:", marginLeft, noteY);
+  setFont("normal", 7.5);
+  doc.text("❖   Whichever column is not applicable, write as NA.", marginLeft + 26, noteY);
+  doc.text("❖   If the nothing is done / gained / spent, write as No/Nil.", marginLeft + 26, noteY + 9.5);
+
+  curY = noteY + 22;
+
+  // PAGE 2 (CONTINUATION IF NEEDED & 5 SIGNATORIES)
   doc.addPage();
-  curY = 40;
+  curY = 36;
   curY = drawTableHeader(curY);
 
-  const rowH2 = Math.max(linesPage2.length * 11 + 14, 45);
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.6);
-  doc.rect(marginLeft, curY, col1W, rowH2);
-  doc.rect(marginLeft + col1W, curY, col2W, rowH2);
-  doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH2);
+  if (linesPage2.length > 0) {
+    const rowH2 = Math.max(linesPage2.length * 11 + 14, 30);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.6);
+    doc.rect(marginLeft, curY, col1W, rowH2);
+    doc.rect(marginLeft + col1W, curY, col2W, rowH2);
+    doc.rect(marginLeft + col1W + col2W, curY, col3W, rowH2);
 
-  setFont("normal", 9);
-  doc.text(linesPage2, marginLeft + col1W + col2W + 5, curY + 12);
-  curY += rowH2;
+    setFont("normal", 9);
+    doc.text(linesPage2, marginLeft + col1W + col2W + 5, curY + 12);
+    curY += rowH2;
+  }
 
   // 5 Signatories Block with Signature Image Imprinting
   const signatories = signaturesConfig.signatories;
@@ -916,17 +1143,54 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
   };
 
   const activeStageIdx = getStageIndexNum(currentStageStr);
-  const sigY = curY + 60;
+  const sigY = curY + 55;
   const sigSpacing = contentWidth / 5;
 
-  // Pre-load processed signature base64 images
   const loadedSignatures: Record<number, string> = {};
+  const stageSigs = report.stageSignatures;
+
+  const norm = (s: string) => (s ? s.toLowerCase().replace(/[^a-z0-9]/g, "") : "");
+
+  const getUploadedSignature = (title: string, id: string, defaultUrl: string): string => {
+    let sigMap: Record<string, string> = {};
+    if (stageSigs instanceof Map) {
+      stageSigs.forEach((val, key) => {
+        if (typeof val === "string") sigMap[key] = val;
+      });
+    } else if (stageSigs && typeof stageSigs === "object") {
+      sigMap = stageSigs as Record<string, string>;
+    }
+
+    const targetTitle = norm(title);
+    const targetId = norm(id);
+
+    for (const [k, v] of Object.entries(sigMap)) {
+      if (v) {
+        const normK = norm(k);
+        if (normK === targetTitle || normK === targetId || k === title || k === id) {
+          return v;
+        }
+      }
+    }
+
+    const globalSig = getStoredGlobalSignature(title) || getStoredGlobalSignature(id);
+    if (globalSig) return globalSig;
+
+    return defaultUrl || "";
+  };
+
   for (const sig of signatories) {
-    if (sig.signatureUrl) {
+    const rawSig = getUploadedSignature(sig.title, sig.id, sig.signatureUrl);
+    if (rawSig) {
       try {
-        const base64 = await getProcessedSignatureBase64(sig.signatureUrl);
-        if (base64) {
-          loadedSignatures[sig.stageNum] = base64;
+        if (rawSig.startsWith("data:image")) {
+          const processed = await getProcessedSignatureBase64(rawSig);
+          loadedSignatures[sig.stageNum] = processed || rawSig;
+        } else {
+          const base64 = await getProcessedSignatureBase64(rawSig);
+          if (base64) {
+            loadedSignatures[sig.stageNum] = base64;
+          }
         }
       } catch (err) {
         console.warn(`Failed loading signature for ${sig.title}:`, err);
@@ -936,19 +1200,25 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
 
   signatories.forEach((sig, index) => {
     const x = marginLeft + index * sigSpacing + sigSpacing / 2;
-    const isSigned = activeStageIdx > sig.stageNum || currentStageStr === "Approved";
     const sigImgBase64 = loadedSignatures[sig.stageNum];
+    const isSigned = (activeStageIdx >= sig.stageNum || currentStageStr === "Approved") && activeStageIdx !== -1;
 
     if (isSigned && sigImgBase64) {
-      // Imprint real signature image onto document
-      doc.addImage(sigImgBase64, "JPEG", x - 32, sigY - 42, 64, 30);
+      try {
+        const isPng = sigImgBase64.toLowerCase().includes("data:image/png") || sigImgBase64.toLowerCase().includes(".png");
+        const imgFormat = isPng ? "PNG" : "JPEG";
+        doc.addImage(sigImgBase64, imgFormat, x - 32, sigY - 42, 64, 30);
+      } catch (err) {
+        console.warn(`Failed adding signature for ${sig.title}:`, err);
+        try {
+          doc.addImage(sigImgBase64, x - 32, sigY - 42, 64, 30);
+        } catch (e2) {}
+      }
 
-      // Draw subtle signature line
       doc.setDrawColor(30, 41, 59);
       doc.setLineWidth(0.6);
       doc.line(x - 38, sigY - 10, x + 38, sigY - 10);
     } else {
-      // Clean signature line for unsigned / pending stage
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.5);
       doc.line(x - 38, sigY - 10, x + 38, sigY - 10);
@@ -1129,7 +1399,7 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
 
   return {
     save: (filename: string) => {
-      const blob = new Blob([finalMergedBytes], { type: "application/pdf" });
+      const blob = new Blob([finalMergedBytes.buffer as ArrayBuffer], { type: "application/pdf" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = filename;
@@ -1139,11 +1409,11 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
       URL.revokeObjectURL(link.href);
     },
     getBlobUrl: () => {
-      const blob = new Blob([finalMergedBytes], { type: "application/pdf" });
+      const blob = new Blob([finalMergedBytes.buffer as ArrayBuffer], { type: "application/pdf" });
       return URL.createObjectURL(blob);
     },
     getBlob: () => {
-      return new Blob([finalMergedBytes], { type: "application/pdf" });
+      return new Blob([finalMergedBytes.buffer as ArrayBuffer], { type: "application/pdf" });
     },
   };
 }
