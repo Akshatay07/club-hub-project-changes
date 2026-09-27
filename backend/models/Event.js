@@ -121,6 +121,8 @@ const eventSchema = new mongoose.Schema(
 
     // ===== 24-POINT INSTITUTIONAL REPORT FIELDS =====
     type: { type: String, default: "" }, // Event type (e.g. Faculty Development Program, Workshop)
+    unitName: { type: String, default: "" }, // Unit Name / Club Name / Center Name
+    alignedSDG: { type: String, default: "" }, // Aligned UN SDG Goal(s)
     department: { type: String, default: "BCA" },
     venue: { type: String, default: "" },
     reportDate: { type: String, default: "" },

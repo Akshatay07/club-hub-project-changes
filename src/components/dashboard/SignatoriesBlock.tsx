@@ -5,12 +5,14 @@ interface SignatoriesBlockProps {
   currentStage?: string;
   stageSignatures?: Record<string, string> | Map<string, string>;
   className?: string;
+  hideSignatures?: boolean;
 }
 
 export const SignatoriesBlock: React.FC<SignatoriesBlockProps> = ({
   currentStage = "Event Coordinators",
   stageSignatures,
   className = "",
+  hideSignatures = false,
 }) => {
   const signatories = signaturesConfig.signatories;
 
@@ -23,7 +25,11 @@ export const SignatoriesBlock: React.FC<SignatoriesBlockProps> = ({
 
   const activeStageIdx = getStageIndexNum(currentStage);
 
-  const getSignatureUrl = (title: string, id: string, defaultUrl: string): string => {
+  const getSignatureUrl = (
+    title: string,
+    id: string,
+    defaultUrl: string
+  ): { url: string; hasExplicit: boolean } => {
     let sigMap: Record<string, string> = {};
     if (stageSignatures instanceof Map) {
       stageSignatures.forEach((val, key) => {
@@ -41,22 +47,25 @@ export const SignatoriesBlock: React.FC<SignatoriesBlockProps> = ({
       if (v) {
         const normK = norm(k);
         if (normK === targetTitle || normK === targetId || k === title || k === id) {
-          return v;
+          return { url: v, hasExplicit: true };
         }
       }
     }
 
     const globalSig = getStoredGlobalSignature(title) || getStoredGlobalSignature(id);
-    if (globalSig) return globalSig;
+    if (globalSig) return { url: globalSig, hasExplicit: false };
 
-    return defaultUrl;
+    return { url: defaultUrl, hasExplicit: false };
   };
 
   return (
     <div className={`grid grid-cols-5 gap-3 text-center pt-10 pb-4 ${className}`}>
       {signatories.map((sig) => {
-        const signatureSrc = getSignatureUrl(sig.title, sig.id, sig.signatureUrl);
-        const isSigned = (activeStageIdx >= sig.stageNum || currentStage === "Approved") && activeStageIdx !== -1;
+        const { url: signatureSrc, hasExplicit } = getSignatureUrl(sig.title, sig.id, sig.signatureUrl);
+        const isSigned =
+          !hideSignatures &&
+          activeStageIdx !== -1 &&
+          (currentStage === "Approved" || activeStageIdx > sig.stageNum || hasExplicit);
 
         return (
           <div key={sig.id} className="flex flex-col items-center justify-end group">

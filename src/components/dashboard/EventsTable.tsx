@@ -255,6 +255,8 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       _id: ev._id,
       name: ev.name || "",
       type: ev.type || "Faculty Development Program",
+      unitName: ev.unitName || ev.clubName || ev.clubId?.name || "",
+      alignedSDG: ev.alignedSDG || "",
       department: ev.department || "BCA",
       approvalStage: getEffectiveStage(ev),
       status: getEffectiveStatus(ev),

@@ -46,6 +46,8 @@ import {
   X,
   FileDown,
   Paperclip,
+  Globe,
+  Target,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateInstitutionalReportPdf, ReportData } from "@/utils/reportPdfGenerator";
@@ -59,6 +61,26 @@ import {
 } from "@/utils/fileDownload";
 
 const BACKEND_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace("/api", "");
+
+const SDG_OPTIONS = [
+  { code: "SDG 1", label: "SDG 1: No Poverty" },
+  { code: "SDG 2", label: "SDG 2: Zero Hunger" },
+  { code: "SDG 3", label: "SDG 3: Good Health & Well-being" },
+  { code: "SDG 4", label: "SDG 4: Quality Education" },
+  { code: "SDG 5", label: "SDG 5: Gender Equality" },
+  { code: "SDG 6", label: "SDG 6: Clean Water & Sanitation" },
+  { code: "SDG 7", label: "SDG 7: Affordable & Clean Energy" },
+  { code: "SDG 8", label: "SDG 8: Decent Work & Economic Growth" },
+  { code: "SDG 9", label: "SDG 9: Industry, Innovation & Infrastructure" },
+  { code: "SDG 10", label: "SDG 10: Reduced Inequalities" },
+  { code: "SDG 11", label: "SDG 11: Sustainable Cities & Communities" },
+  { code: "SDG 12", label: "SDG 12: Responsible Consumption & Production" },
+  { code: "SDG 13", label: "SDG 13: Climate Action" },
+  { code: "SDG 14", label: "SDG 14: Life Below Water" },
+  { code: "SDG 15", label: "SDG 15: Life on Land" },
+  { code: "SDG 16", label: "SDG 16: Peace, Justice & Strong Institutions" },
+  { code: "SDG 17", label: "SDG 17: Partnerships for the Goals" },
+];
 
 interface StagedPhoto {
   id: string;
@@ -101,6 +123,8 @@ const FacultyReports = () => {
   const [formData, setFormData] = useState<ReportData>({
     name: "",
     type: "Faculty Development Program",
+    unitName: "",
+    alignedSDG: "",
     department: "BCA",
     reportDate: new Date().toLocaleDateString("en-GB"),
     date: "",
@@ -177,6 +201,30 @@ const FacultyReports = () => {
     loadEvents();
   }, []);
 
+  // Toggle SDG Goal selection in form
+  const toggleSDGGoal = (sdgLabel: string) => {
+    const current = formData.alignedSDG || "";
+    const sdgCode = sdgLabel.split(":")[0].trim();
+
+    if (!current.trim()) {
+      setFormData((prev) => ({ ...prev, alignedSDG: sdgLabel }));
+      return;
+    }
+
+    const items = current.split(",").map((s) => s.trim()).filter(Boolean);
+    const existingIndex = items.findIndex(
+      (item) => item.toLowerCase() === sdgLabel.toLowerCase() || item.toLowerCase().startsWith(sdgCode.toLowerCase())
+    );
+
+    if (existingIndex >= 0) {
+      items.splice(existingIndex, 1);
+    } else {
+      items.push(sdgLabel);
+    }
+
+    setFormData((prev) => ({ ...prev, alignedSDG: items.join(", ") }));
+  };
+
   // Fetch full event details when selected
   useEffect(() => {
     if (!selectedId) return;
@@ -191,6 +239,8 @@ const FacultyReports = () => {
           _id: ev._id,
           name: ev.name || "",
           type: ev.type || "Faculty Development Program",
+          unitName: ev.unitName || ev.clubId?.name || "",
+          alignedSDG: ev.alignedSDG || "",
           department: ev.department || "BCA",
           reportDate: ev.reportDate || new Date().toLocaleDateString("en-GB"),
           date: ev.date || "",
@@ -718,6 +768,7 @@ const FacultyReports = () => {
       setDownloadingPdf(true);
       const doc = await generateInstitutionalReportPdf({
         ...formData,
+        hideSignatures: !selectedEventObj?.reportSubmitted ? true : false,
         stageSignatures: selectedEventObj?.stageSignatures,
       });
       const sanitizedName = (formData.name || "DSCASC_Report").replace(
@@ -865,6 +916,20 @@ const FacultyReports = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">
+                      Unit Name / Center / Club Name *
+                    </Label>
+                    <Input
+                      value={formData.unitName || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, unitName: e.target.value })
+                      }
+                      placeholder="e.g. Centre for Innovation & Incubation / BCA Club"
+                      className="font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
                       1. Event Type / Category *
                     </Label>
                     <Input
@@ -876,7 +941,7 @@ const FacultyReports = () => {
                     />
                   </div>
 
-                  <div className="md:col-span-2 space-y-1.5">
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">
                       2. Title of the Event *
                     </Label>
@@ -888,6 +953,58 @@ const FacultyReports = () => {
                       placeholder="e.g. Computational Mathematics for AI & Machine Learning"
                       className="font-medium"
                     />
+                  </div>
+
+                  {/* Aligned SDG Goals */}
+                  <div className="md:col-span-3 space-y-2.5 p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <Label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        Aligned SDG Goal(s) (Point 2 Table Column)
+                      </Label>
+                      <span className="text-[11px] text-muted-foreground">
+                        Click badges below to select standard UN SDG goals or type custom descriptions
+                      </span>
+                    </div>
+
+                    <Input
+                      value={formData.alignedSDG || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, alignedSDG: e.target.value })
+                      }
+                      placeholder="e.g. SDG 4: Quality Education, SDG 9: Industry, Innovation & Infrastructure"
+                      className="bg-background font-medium border-emerald-500/20 focus:border-emerald-500 text-sm"
+                    />
+
+                    {/* Quick Pick SDG Badges */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Target className="w-3.5 h-3.5 text-emerald-500" />
+                        Quick Select UN Sustainable Development Goals (SDGs):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {SDG_OPTIONS.map((sdg) => {
+                          const currentStr = formData.alignedSDG || "";
+                          const sdgCode = sdg.code;
+                          const isSelected = currentStr.toLowerCase().includes(sdgCode.toLowerCase());
+
+                          return (
+                            <Badge
+                              key={sdg.code}
+                              variant={isSelected ? "default" : "outline"}
+                              className={`cursor-pointer text-[11px] py-1 px-2.5 transition-all select-none ${
+                                isSelected
+                                  ? "bg-emerald-600 text-white font-semibold shadow-sm hover:bg-emerald-700"
+                                  : "hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-400 text-foreground bg-background"
+                              }`}
+                              onClick={() => toggleSDGGoal(sdg.label)}
+                            >
+                              {sdg.label}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -1844,6 +1961,7 @@ const FacultyReports = () => {
                 <SignatoriesBlock
                   currentStage={selectedEventObj?.approvalStage || "Event Coordinators"}
                   stageSignatures={selectedEventObj?.stageSignatures}
+                  hideSignatures={true}
                 />
               </div>
 

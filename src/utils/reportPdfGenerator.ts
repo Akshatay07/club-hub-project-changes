@@ -382,6 +382,8 @@ export interface ReportData {
     fileName?: string;
   }>;
   stageSignatures?: Record<string, string> | Map<string, string>;
+  reportSubmitted?: boolean;
+  hideSignatures?: boolean;
 }
 
 // Convert image URL to base64 for jsPDF
@@ -1198,10 +1200,15 @@ export async function generateInstitutionalReportPdf(report: ReportData): Promis
     }
   }
 
+  const shouldHideSigs = Boolean(report.hideSignatures || report.reportSubmitted === false);
+
   signatories.forEach((sig, index) => {
     const x = marginLeft + index * sigSpacing + sigSpacing / 2;
     const sigImgBase64 = loadedSignatures[sig.stageNum];
-    const isSigned = (activeStageIdx >= sig.stageNum || currentStageStr === "Approved") && activeStageIdx !== -1;
+    const isSigned =
+      !shouldHideSigs &&
+      activeStageIdx !== -1 &&
+      (currentStageStr === "Approved" || activeStageIdx > sig.stageNum);
 
     if (isSigned && sigImgBase64) {
       try {
