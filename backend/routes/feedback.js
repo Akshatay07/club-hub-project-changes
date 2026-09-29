@@ -218,6 +218,7 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
       itemsToImport,
       selectedClubId,
       selectedEventId,
+      eventName,
       defaultRating = 5,
       previewOnly = false,
     } = req.body;
@@ -234,11 +235,42 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
       return matched ? matched._id : selectedClubId || null;
     };
 
+    // Helper to resolve or create Event ID
+    const resolveEventId = async (evtNameInput, fallbackClubId) => {
+      if (selectedEventId && mongoose.Types.ObjectId.isValid(selectedEventId)) {
+        return selectedEventId;
+      }
+      const rawName = (evtNameInput || eventName || "").trim();
+      if (!rawName) return null;
+
+      let matchedEvent = await Event.findOne({
+        name: new RegExp(`^${rawName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+      });
+
+      if (!matchedEvent) {
+        const clubForEvent = fallbackClubId || selectedClubId || (allClubs[0] ? allClubs[0]._id : null);
+        if (clubForEvent) {
+          matchedEvent = await Event.create({
+            name: rawName,
+            clubId: clubForEvent,
+            facultyId: req.user._id || req.user.id,
+            date: new Date().toISOString().split("T")[0],
+            time: "10:00 AM",
+            status: "approved",
+            description: `Imported feedback session for ${rawName}`,
+          });
+        }
+      }
+
+      return matchedEvent ? matchedEvent._id : null;
+    };
+
     // CASE 1: Applying pre-confirmed / structured items list from frontend preview
     if (Array.isArray(itemsToImport) && itemsToImport.length > 0) {
       let createdFeedbackCount = 0;
       let createdComplaintCount = 0;
       const touchedClubs = new Set();
+      const resolvedGlobalEventId = await resolveEventId(eventName, selectedClubId);
 
       for (const item of itemsToImport) {
         if (!item) continue;
@@ -250,8 +282,8 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
           department: item.department,
         });
 
-        const targetClubId = item.clubId || resolveClubId(item.clubName);
-        const targetEventId = item.eventId || selectedEventId || null;
+        const targetClubId = item.clubId || resolveClubId(item.clubName) || (allClubs[0] ? allClubs[0]._id : null);
+        const targetEventId = item.eventId || resolvedGlobalEventId || null;
         if (targetClubId) touchedClubs.add(String(targetClubId));
 
         const itemCreatedAt = item.date ? new Date(item.date) : new Date();
@@ -299,6 +331,7 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
         message: `Successfully imported ${createdFeedbackCount} feedback review(s) and ${createdComplaintCount} complaint(s).`,
         feedbackCount: createdFeedbackCount,
         complaintCount: createdComplaintCount,
+        eventId: resolvedGlobalEventId,
       });
     }
 
@@ -465,6 +498,7 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
     let createdFeedbackCount = 0;
     let createdComplaintCount = 0;
     const touchedClubs = new Set();
+    const resolvedGlobalEventId = await resolveEventId(eventName, selectedClubId);
 
     for (const item of parsedRows) {
       const studentUser = await findOrCreateStudentUser({
@@ -473,8 +507,8 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
         regNo: item.regNo,
       });
 
-      const targetClubId = item.clubId || selectedClubId || null;
-      const targetEventId = selectedEventId || null;
+      const targetClubId = item.clubId || selectedClubId || (allClubs[0] ? allClubs[0]._id : null);
+      const targetEventId = resolvedGlobalEventId || selectedEventId || null;
       if (targetClubId) touchedClubs.add(String(targetClubId));
 
       const itemCreatedAt = item.date instanceof Date && !isNaN(item.date.getTime()) ? item.date : new Date();
@@ -526,8 +560,25 @@ router.post("/import-google-sheet", permit("admin", "faculty"), async (req, res)
   }
 });
 
+/* ================= DELETE IMPORTED SHEET SESSION / EVENT FEEDBACK ================= */
+router.delete("/event/:eventId", permit("admin", "faculty"), async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const feedbackResult = await Feedback.deleteMany({ eventId });
+    await Complaint.deleteMany({ eventId });
+
+    res.json({
+      success: true,
+      message: `Deleted imported sheet session and ${feedbackResult.deletedCount || 0} feedback review(s).`,
+      deletedCount: feedbackResult.deletedCount || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message || "Failed to delete imported sheet feedback" });
+  }
+});
+
 /* ================= DELETE FEEDBACK ================= */
-router.delete("/:id", permit("admin"), async (req, res) => {
+router.delete("/:id", permit("admin", "faculty"), async (req, res) => {
   try {
     const feedback = await Feedback.findByIdAndDelete(req.params.id);
     if (!feedback) {
