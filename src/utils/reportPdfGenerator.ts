@@ -115,18 +115,17 @@ async function addImageAnnexurePage(
   fontReg: any
 ) {
   try {
-    const buffer = await fetchArrayBuffer(imgUrl);
-    if (!buffer) return;
+    const normData = await fetchNormalizedImageBytes(imgUrl);
+    if (!normData) return;
 
     let embeddedImg;
-    const isPng = imgUrl.toLowerCase().includes(".png");
-    if (isPng) {
-      embeddedImg = await pdfDoc.embedPng(buffer);
+    if (normData.format === "png") {
+      embeddedImg = await pdfDoc.embedPng(normData.bytes);
     } else {
       try {
-        embeddedImg = await pdfDoc.embedJpg(buffer);
+        embeddedImg = await pdfDoc.embedJpg(normData.bytes);
       } catch {
-        embeddedImg = await pdfDoc.embedPng(buffer);
+        embeddedImg = await pdfDoc.embedPng(normData.bytes);
       }
     }
 
@@ -196,9 +195,16 @@ async function addPdfAnnexurePages(
   }
 }
 
+const DEFAULT_PHOTO_DESCRIPTIONS = [
+  "Photo 1: Geo-tagged photograph of the programme venue during the inauguration.",
+  "Photo 2: The resource person addressing the participants on the theme of the programme.",
+  "Photo 3: Students actively participating in the programme.",
+  "Photo 4: Group photograph of the resource person, faculty members and participants.",
+];
+
 async function addPhotosAnnexurePage(
   pdfDoc: PDFDocument,
-  photos: Array<{ url?: string; caption?: string }>,
+  photos: Array<{ url?: string; caption?: string; title?: string }>,
   dscascLogoImg: any,
   iicLogoImg: any,
   fontBold: any,
@@ -207,89 +213,270 @@ async function addPhotosAnnexurePage(
 ) {
   if (!photos || photos.length === 0) return;
 
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  const { width, height } = page.getSize();
+  const photosPerPage = 4;
+  const totalPages = Math.max(1, Math.ceil(photos.length / photosPerPage));
 
-  drawHeaderOnPdfPage(
-    page,
-    "ANNEXURE II: EVENT PHOTOGRAPHS / GLIMPSES",
-    dscascLogoImg,
-    iicLogoImg,
-    fontBold,
-    fontReg
-  );
+  for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+    const page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
 
-  const photoW = (width - 90) / 2;
-  const photoH = 190;
-  const startY = height - 90;
-
-  for (let i = 0; i < Math.min(photos.length, 6); i++) {
-    const photo = photos[i];
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-
-    const px = 35 + col * (photoW + 20);
-    const py = startY - (row + 1) * (photoH + 30);
-
+    // 1. Page Background: White
     page.drawRectangle({
-      x: px,
-      y: py,
-      width: photoW,
-      height: photoH,
-      color: rgb(0.97, 0.98, 0.99),
-      borderColor: rgb(0.8, 0.84, 0.88),
-      borderWidth: 1,
+      x: 0,
+      y: 0,
+      width: width,
+      height: height,
+      color: rgb(1, 1, 1),
     });
 
-    const photoUrl = photo.url?.startsWith("http")
-      ? photo.url
-      : `${backendBase}${photo.url}`;
+    // 2. Official Header Section
+    const topY = height;
 
-    try {
-      const buffer = await fetchArrayBuffer(photoUrl);
-      if (buffer) {
-        let embeddedImg;
-        if (photoUrl.toLowerCase().includes(".png")) {
-          embeddedImg = await pdfDoc.embedPng(buffer);
+    // DSCASC Logo (Left)
+    if (dscascLogoImg) {
+      page.drawImage(dscascLogoImg, {
+        x: 35,
+        y: topY - 62,
+        width: 48,
+        height: 48,
+      });
+    }
+
+    // Centered Header Text
+    const title1 = "DAYANANDA SAGAR COLLEGE OF ARTS, SCIENCE AND COMMERCE";
+    const title2 = "College affiliated to Bangalore University (BU),";
+    const title3 = "Approved by AICTE and UGC, Accredited by NAAC with 'B+' grade, and ISO 9001-2015 Certified Institution";
+    const title4 = "Internal Quality Assurance Cell";
+    const title5 = "Glimpses of the Event";
+
+    const w1 = fontBold.widthOfTextAtSize(title1, 10.5);
+    const w2 = fontReg.widthOfTextAtSize(title2, 8);
+    const w3 = fontReg.widthOfTextAtSize(title3, 7.5);
+    const w4 = fontBold.widthOfTextAtSize(title4, 11);
+    const w5 = fontBold.widthOfTextAtSize(title5, 11);
+
+    page.drawText(title1, {
+      x: (width - w1) / 2,
+      y: topY - 22,
+      size: 10.5,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    page.drawText(title2, {
+      x: (width - w2) / 2,
+      y: topY - 35,
+      size: 8,
+      font: fontReg,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    page.drawText(title3, {
+      x: (width - w3) / 2,
+      y: topY - 46,
+      size: 7.5,
+      font: fontReg,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    page.drawText(title4, {
+      x: (width - w4) / 2,
+      y: topY - 62,
+      size: 11,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    page.drawText(title5, {
+      x: (width - w5) / 2,
+      y: topY - 80,
+      size: 11,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    // 3. 2x2 Grid Calculations
+    const sideMargin = 35;
+    const gridTop = topY - 92;
+    const gridBottom = 65;
+    const gridW = width - sideMargin * 2; // 525.28
+    const gridH = gridTop - gridBottom;   // 684.89
+
+    const cellW = gridW / 2; // 262.64
+    const cellH = gridH / 2; // 342.44
+
+    const startPhotoIdx = pageIdx * photosPerPage;
+    const pagePhotos = photos.slice(startPhotoIdx, startPhotoIdx + photosPerPage);
+
+    for (let slot = 0; slot < 4; slot++) {
+      const globalIdx = startPhotoIdx + slot;
+      const photo = pagePhotos[slot];
+      const col = slot % 2;
+      const row = Math.floor(slot / 2);
+
+      const cellX = sideMargin + col * cellW;
+      const cellY = gridTop - (row + 1) * cellH;
+
+      // Outer Cell Box Border
+      page.drawRectangle({
+        x: cellX,
+        y: cellY,
+        width: cellW,
+        height: cellH,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(0.2, 0.2, 0.2),
+        borderWidth: 0.8,
+      });
+
+      // Top Descriptor Text inside Cell
+      const defaultDesc = DEFAULT_PHOTO_DESCRIPTIONS[slot % 4];
+      const descText = photo?.caption
+        ? `Photo ${globalIdx + 1}: ${photo.caption}`
+        : defaultDesc;
+
+      const descFontSize = 7.5;
+      const descMargin = 8;
+      const maxDescW = cellW - descMargin * 2;
+
+      const words = descText.split(" ");
+      let line1 = "";
+      let line2 = "";
+
+      for (const w of words) {
+        const testLine = line1 ? `${line1} ${w}` : w;
+        if (fontReg.widthOfTextAtSize(testLine, descFontSize) <= maxDescW) {
+          line1 = testLine;
         } else {
-          try {
-            embeddedImg = await pdfDoc.embedJpg(buffer);
-          } catch {
-            embeddedImg = await pdfDoc.embedPng(buffer);
-          }
+          line2 = line2 ? `${line2} ${w}` : w;
         }
+      }
 
-        const maxIW = photoW - 10;
-        const maxIH = photoH - 30;
-        const scaled = embeddedImg.scaleToFit(maxIW, maxIH);
-
-        const ix = px + (photoW - scaled.width) / 2;
-        const iy = py + 24 + (maxIH - scaled.height) / 2;
-
-        page.drawImage(embeddedImg, {
-          x: ix,
-          y: iy,
-          width: scaled.width,
-          height: scaled.height,
+      if (line1) {
+        page.drawText(line1, {
+          x: cellX + descMargin,
+          y: cellY + cellH - 16,
+          size: descFontSize,
+          font: fontBold,
+          color: rgb(0.15, 0.15, 0.15),
         });
       }
-    } catch (err) {
-      console.warn("Photo render error:", err);
+
+      if (line2) {
+        let displayLine2 = line2;
+        while (displayLine2.length > 3 && fontReg.widthOfTextAtSize(displayLine2, descFontSize) > maxDescW) {
+          displayLine2 = displayLine2.slice(0, -4) + "...";
+        }
+        page.drawText(displayLine2, {
+          x: cellX + descMargin,
+          y: cellY + cellH - 26,
+          size: descFontSize,
+          font: fontReg,
+          color: rgb(0.25, 0.25, 0.25),
+        });
+      }
+
+      // Middle Image Container Area
+      const captionBarHeight = 24;
+      const topDescHeight = line2 ? 30 : 20;
+
+      const imageAreaX = cellX + 6;
+      const imageAreaY = cellY + captionBarHeight + 4;
+      const maxIW = cellW - 12;
+      const maxIH = cellH - captionBarHeight - topDescHeight - 8;
+
+      if (photo?.url) {
+        const photoUrl = photo.url.startsWith("http")
+          ? photo.url
+          : `${backendBase}${photo.url}`;
+
+        try {
+          const normData = await fetchNormalizedImageBytes(photoUrl);
+          if (normData) {
+            let embeddedImg;
+            if (normData.format === "png") {
+              embeddedImg = await pdfDoc.embedPng(normData.bytes);
+            } else {
+              try {
+                embeddedImg = await pdfDoc.embedJpg(normData.bytes);
+              } catch {
+                embeddedImg = await pdfDoc.embedPng(normData.bytes);
+              }
+            }
+
+            const scaled = embeddedImg.scaleToFit(maxIW, maxIH);
+
+            const ix = imageAreaX + (maxIW - scaled.width) / 2;
+            const iy = imageAreaY + (maxIH - scaled.height) / 2;
+
+            page.drawImage(embeddedImg, {
+              x: ix,
+              y: iy,
+              width: scaled.width,
+              height: scaled.height,
+            });
+          }
+        } catch (err) {
+          console.warn("Photo render error:", err);
+        }
+      }
+
+      // Bottom Caption Box Divider Line & Text
+      page.drawLine({
+        start: { x: cellX, y: cellY + captionBarHeight },
+        end: { x: cellX + cellW, y: cellY + captionBarHeight },
+        thickness: 0.8,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+
+      const captionLabel = `Photograph ${globalIdx + 1} : ${photo?.caption || photo?.title || "Caption"}`;
+      const capSize = 8.5;
+      let displayCap = captionLabel;
+      while (displayCap.length > 5 && fontBold.widthOfTextAtSize(displayCap, capSize) > cellW - 12) {
+        displayCap = displayCap.slice(0, -4) + "...";
+      }
+      const capW = fontBold.widthOfTextAtSize(displayCap, capSize);
+
+      page.drawText(displayCap, {
+        x: cellX + (cellW - capW) / 2,
+        y: cellY + 7,
+        size: capSize,
+        font: fontBold,
+        color: rgb(0.1, 0.1, 0.1),
+      });
     }
 
-    const captionText = `Photo ${i + 1}: ${photo.caption || "Event Session"}`;
-    const capSize = 8.5;
-    let displayCap = captionText;
-    while (displayCap.length > 5 && fontBold.widthOfTextAtSize(displayCap, capSize) > photoW - 8) {
-      displayCap = displayCap.slice(0, -4) + "...";
-    }
-    const capW = fontBold.widthOfTextAtSize(displayCap, capSize);
-    page.drawText(displayCap, {
-      x: px + (photoW - capW) / 2,
-      y: py + 8,
-      size: capSize,
+    // 4. Institutional Page Footer Block
+    const footerY = 42;
+    const footerLine1 = "Postal Address: 1st Stage, Kumaraswamy Layout, Bengaluru, Karnataka 560111";
+    const footerLine2 = "Ph: 080-42161767        Email ID: principal-dscasc@dayanandasagar.edu";
+    const footerLine3 = "Website: www.dscasc.edu.in";
+
+    const fw1 = fontBold.widthOfTextAtSize(footerLine1, 8);
+    const fw2 = fontReg.widthOfTextAtSize(footerLine2, 8);
+    const fw3 = fontReg.widthOfTextAtSize(footerLine3, 8);
+
+    page.drawText(footerLine1, {
+      x: (width - fw1) / 2,
+      y: footerY,
+      size: 8,
       font: fontBold,
       color: rgb(0.1, 0.1, 0.1),
+    });
+
+    page.drawText(footerLine2, {
+      x: (width - fw2) / 2,
+      y: footerY - 11,
+      size: 8,
+      font: fontReg,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    page.drawText(footerLine3, {
+      x: (width - fw3) / 2,
+      y: footerY - 22,
+      size: 8,
+      font: fontReg,
+      color: rgb(0.2, 0.2, 0.2),
     });
   }
 }
@@ -418,6 +605,57 @@ async function fetchArrayBuffer(url: string): Promise<ArrayBuffer | null> {
     return await res.arrayBuffer();
   } catch (err) {
     console.warn("Failed to fetch file buffer:", err);
+    return null;
+  }
+}
+
+// Fetch image and normalize orientation via Canvas (strips EXIF rotation, bakes upright rendering)
+async function fetchNormalizedImageBytes(url: string): Promise<{ bytes: Uint8Array; format: "png" | "jpeg" } | null> {
+  try {
+    const normResult = await new Promise<{ bytes: Uint8Array; format: "png" | "jpeg" } | null>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (!w || !h) {
+            resolve(null);
+            return;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const isPng = url.toLowerCase().includes(".png");
+          const format = isPng ? "png" : "jpeg";
+          const mime = isPng ? "image/png" : "image/jpeg";
+          const dataUrl = canvas.toDataURL(mime, 0.95);
+          const bytes = base64ToUint8Array(dataUrl);
+          resolve({ bytes, format });
+        } catch (err) {
+          console.warn("Canvas normalization failed:", err);
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+
+    if (normResult) return normResult;
+
+    // Fallback to raw fetch if canvas fails (e.g. cross-origin restriction)
+    const rawBuffer = await fetchArrayBuffer(url);
+    if (!rawBuffer) return null;
+    const isPng = url.toLowerCase().includes(".png");
+    return { bytes: new Uint8Array(rawBuffer), format: isPng ? "png" : "jpeg" };
+  } catch (err) {
+    console.warn("Failed to fetch and normalize image:", err);
     return null;
   }
 }

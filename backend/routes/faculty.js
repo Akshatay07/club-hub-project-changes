@@ -772,9 +772,22 @@ async function renderStudentFeedbackPdf(event, res) {
 router.get("/attendance/:eventId/feedback-pdf", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const event = await Event.findById(eventId).populate("clubId", "name");
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+    let event;
+    if (eventId === "generic" || !eventId || !eventId.match(/^[0-9a-fA-F]{24}$/)) {
+      event = {
+        name: "Student Feedback Activity",
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        clubId: { name: "Institutional Club / Department" },
+      };
+    } else {
+      event = await Event.findById(eventId).populate("clubId", "name");
+      if (!event) {
+        event = {
+          name: "Student Feedback Activity",
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          clubId: { name: "Institutional Club / Department" },
+        };
+      }
     }
     await renderStudentFeedbackPdf(event, res);
   } catch (err) {
@@ -788,9 +801,22 @@ router.get("/attendance/:eventId/feedback-pdf", async (req, res) => {
 router.get("/events/:eventId/feedback-pdf", async (req, res) => {
   try {
     const { eventId } = req.params;
-    const event = await Event.findById(eventId).populate("clubId", "name");
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+    let event;
+    if (eventId === "generic" || !eventId || !eventId.match(/^[0-9a-fA-F]{24}$/)) {
+      event = {
+        name: "Student Feedback Activity",
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        clubId: { name: "Institutional Club / Department" },
+      };
+    } else {
+      event = await Event.findById(eventId).populate("clubId", "name");
+      if (!event) {
+        event = {
+          name: "Student Feedback Activity",
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          clubId: { name: "Institutional Club / Department" },
+        };
+      }
     }
     await renderStudentFeedbackPdf(event, res);
   } catch (err) {
