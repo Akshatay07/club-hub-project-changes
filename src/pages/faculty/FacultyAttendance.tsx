@@ -567,18 +567,6 @@ const FacultyAttendance = () => {
             )}
           </Button>
 
-          {/* BUTTON 4: Download Blank Feedback Form */}
-          <Button
-            variant="outline"
-            onClick={handleDownloadFeedbackPDF}
-            disabled={!selectedEvent}
-            className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
-            title="Download blank printable student feedback form"
-          >
-            <FileText className="h-4 w-4" />
-            Feedback Form
-          </Button>
-
           {/* BUTTON 4: Export CSV */}
           <Button
             variant="ghost"
@@ -598,8 +586,8 @@ const FacultyAttendance = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Select Event
+                <Label className="text-sm font-bold text-foreground uppercase tracking-wider">
+                  SELECT EVENT
                 </Label>
                 <Select
                   value={selectedEvent}

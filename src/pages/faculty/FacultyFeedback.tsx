@@ -693,8 +693,8 @@ const FacultyFeedback = () => {
       {/* ================= TIER 1: SELECT CLUB CARDS ================= */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-primary" />
+          <Label className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-primary" />
             1. Select Club Card
           </Label>
           {isFilterActive && (
@@ -801,8 +801,8 @@ const FacultyFeedback = () => {
           className="space-y-3 pt-1 border-t border-border/60"
         >
           <div className="flex items-center justify-between">
-            <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-primary" />
+            <Label className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
               2. Select Event under {activeClubObj ? <strong>{activeClubObj.name}</strong> : "All Clubs"}
             </Label>
             <span className="text-xs text-muted-foreground font-medium">
