@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarDays, Users, ClipboardList, MessageSquare } from "lucide-react";
+import { CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
 import { useFacultyClub, useFacultyStats } from "@/hooks/use-dashboard-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import EventsTable from "@/components/dashboard/EventsTable";
@@ -35,7 +35,7 @@ const FacultyDashboard = () => {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-card border border-border bg-card">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
@@ -57,18 +57,6 @@ const FacultyDashboard = () => {
               </h2>
             </div>
             <ClipboardList className="h-10 w-10 text-orange-500" />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card border border-border bg-card">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground text-sm">Registrations</p>
-              <h2 className="text-3xl font-bold text-card-foreground">
-                {stats?.totalRegistrations ?? 0}
-              </h2>
-            </div>
-            <Users className="h-10 w-10 text-green-500" />
           </CardContent>
         </Card>
 
