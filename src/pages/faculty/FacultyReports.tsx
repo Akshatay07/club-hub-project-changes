@@ -768,7 +768,7 @@ const FacultyReports = () => {
       setDownloadingPdf(true);
       const doc = await generateInstitutionalReportPdf({
         ...formData,
-        hideSignatures: !selectedEventObj?.reportSubmitted ? true : false,
+        hideSignatures: true,
         stageSignatures: selectedEventObj?.stageSignatures,
       });
       const sanitizedName = (formData.name || "DSCASC_Report").replace(

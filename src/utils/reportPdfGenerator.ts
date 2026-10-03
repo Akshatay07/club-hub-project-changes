@@ -196,10 +196,10 @@ async function addPdfAnnexurePages(
 }
 
 const DEFAULT_PHOTO_DESCRIPTIONS = [
-  "Photo 1: Geo-tagged photograph of the programme venue during the inauguration.",
-  "Photo 2: The resource person addressing the participants on the theme of the programme.",
-  "Photo 3: Students actively participating in the programme.",
-  "Photo 4: Group photograph of the resource person, faculty members and participants.",
+  "Geo-tagged photograph of the programme venue during the inauguration.",
+  "The resource person addressing the participants on the theme of the programme.",
+  "Students actively participating in the programme.",
+  "Group photograph of the resource person, faculty members and participants.",
 ];
 
 async function addPhotosAnnexurePage(
@@ -328,61 +328,13 @@ async function addPhotosAnnexurePage(
         borderWidth: 0.8,
       });
 
-      // Top Descriptor Text inside Cell
-      const defaultDesc = DEFAULT_PHOTO_DESCRIPTIONS[slot % 4];
-      const descText = photo?.caption
-        ? `Photo ${globalIdx + 1}: ${photo.caption}`
-        : defaultDesc;
-
-      const descFontSize = 7.5;
-      const descMargin = 8;
-      const maxDescW = cellW - descMargin * 2;
-
-      const words = descText.split(" ");
-      let line1 = "";
-      let line2 = "";
-
-      for (const w of words) {
-        const testLine = line1 ? `${line1} ${w}` : w;
-        if (fontReg.widthOfTextAtSize(testLine, descFontSize) <= maxDescW) {
-          line1 = testLine;
-        } else {
-          line2 = line2 ? `${line2} ${w}` : w;
-        }
-      }
-
-      if (line1) {
-        page.drawText(line1, {
-          x: cellX + descMargin,
-          y: cellY + cellH - 16,
-          size: descFontSize,
-          font: fontBold,
-          color: rgb(0.15, 0.15, 0.15),
-        });
-      }
-
-      if (line2) {
-        let displayLine2 = line2;
-        while (displayLine2.length > 3 && fontReg.widthOfTextAtSize(displayLine2, descFontSize) > maxDescW) {
-          displayLine2 = displayLine2.slice(0, -4) + "...";
-        }
-        page.drawText(displayLine2, {
-          x: cellX + descMargin,
-          y: cellY + cellH - 26,
-          size: descFontSize,
-          font: fontReg,
-          color: rgb(0.25, 0.25, 0.25),
-        });
-      }
-
-      // Middle Image Container Area
-      const captionBarHeight = 24;
-      const topDescHeight = line2 ? 30 : 20;
+      // Middle Image Container Area (Image takes full top area down to bottom caption bar)
+      const captionBarHeight = 32;
 
       const imageAreaX = cellX + 6;
-      const imageAreaY = cellY + captionBarHeight + 4;
+      const imageAreaY = cellY + captionBarHeight + 6;
       const maxIW = cellW - 12;
-      const maxIH = cellH - captionBarHeight - topDescHeight - 8;
+      const maxIH = cellH - captionBarHeight - 12;
 
       if (photo?.url) {
         const photoUrl = photo.url.startsWith("http")
@@ -428,21 +380,58 @@ async function addPhotosAnnexurePage(
         color: rgb(0.2, 0.2, 0.2),
       });
 
-      const captionLabel = `Photograph ${globalIdx + 1} : ${photo?.caption || photo?.title || "Caption"}`;
-      const capSize = 8.5;
-      let displayCap = captionLabel;
-      while (displayCap.length > 5 && fontBold.widthOfTextAtSize(displayCap, capSize) > cellW - 12) {
-        displayCap = displayCap.slice(0, -4) + "...";
-      }
-      const capW = fontBold.widthOfTextAtSize(displayCap, capSize);
+      const defaultDesc = DEFAULT_PHOTO_DESCRIPTIONS[slot % 4];
+      const rawCap = photo?.caption || photo?.title || defaultDesc;
+      const cleanCap = rawCap.replace(/^(Photo|Photograph)\s*\d+\s*:\s*/i, "");
+      const captionLabel = `Photograph ${globalIdx + 1} : ${cleanCap}`;
 
-      page.drawText(displayCap, {
-        x: cellX + (cellW - capW) / 2,
-        y: cellY + 7,
-        size: capSize,
-        font: fontBold,
-        color: rgb(0.1, 0.1, 0.1),
-      });
+      const capSize = 8;
+      const maxCapW = cellW - 12;
+      const words = captionLabel.split(" ");
+      let capLine1 = "";
+      let capLine2 = "";
+
+      for (const w of words) {
+        const testLine = capLine1 ? `${capLine1} ${w}` : w;
+        if (fontBold.widthOfTextAtSize(testLine, capSize) <= maxCapW) {
+          capLine1 = testLine;
+        } else {
+          capLine2 = capLine2 ? `${capLine2} ${w}` : w;
+        }
+      }
+
+      if (capLine2) {
+        let displayLine2 = capLine2;
+        while (displayLine2.length > 3 && fontBold.widthOfTextAtSize(displayLine2, capSize) > maxCapW) {
+          displayLine2 = displayLine2.slice(0, -4) + "...";
+        }
+        const w1 = fontBold.widthOfTextAtSize(capLine1, capSize);
+        const w2 = fontBold.widthOfTextAtSize(displayLine2, capSize);
+
+        page.drawText(capLine1, {
+          x: cellX + (cellW - w1) / 2,
+          y: cellY + 18,
+          size: capSize,
+          font: fontBold,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+        page.drawText(displayLine2, {
+          x: cellX + (cellW - w2) / 2,
+          y: cellY + 7,
+          size: capSize,
+          font: fontBold,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      } else {
+        const w1 = fontBold.widthOfTextAtSize(capLine1, capSize);
+        page.drawText(capLine1, {
+          x: cellX + (cellW - w1) / 2,
+          y: cellY + (captionBarHeight - capSize) / 2,
+          size: capSize,
+          font: fontBold,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      }
     }
 
     // 4. Institutional Page Footer Block

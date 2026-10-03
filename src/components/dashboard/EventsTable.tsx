@@ -331,6 +331,7 @@ const EventsTable = ({ facultyView = false }: EventsTableProps) => {
       eventPhotos: ev.eventPhotos || [],
       signedAttendanceSheets: ev.signedAttendanceSheets || [],
       stageSignatures: ev.stageSignatures || {},
+      hideSignatures: facultyView ? true : Boolean(ev.hideSignatures),
     };
   };
 
