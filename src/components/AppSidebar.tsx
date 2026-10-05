@@ -12,6 +12,7 @@ import {
   Bell,
   BarChart3,
   AlertCircle,
+  FileCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -57,6 +58,7 @@ const facultyNav = [
   { title: "Feedback", url: "/faculty/feedback", icon: MessageSquare },
   { title: "Messages", url: "/messages", icon: MessageSquare },
   { title: "Reports", url: "/faculty/reports", icon: FileText },
+  { title: "Cover Letter", url: "/faculty/cover-letter", icon: FileCheck },
 ];
 
 export function AppSidebar() {

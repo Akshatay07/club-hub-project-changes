@@ -42,6 +42,7 @@ import FacultyFeedback from "./pages/faculty/FacultyFeedback";
 import FacultyAttendance from "./pages/faculty/FacultyAttendance";
 import FacultyAnalytics from "./pages/faculty/FacultyAnalytics";
 import FacultyAssignment from "@/pages/FacultyAssignment";
+import FacultyCoverLetter from "./pages/faculty/FacultyCoverLetter";
 
 const queryClient = new QueryClient();
 
@@ -314,6 +315,19 @@ const App = () => (
                     <RoleRoute allowedRoles={["faculty"]}>
                       <DashboardLayout>
                         <FacultyAnalytics />
+                      </DashboardLayout>
+                    </RoleRoute>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/faculty/cover-letter"
+                element={
+                  <ProtectedRoute>
+                    <RoleRoute allowedRoles={["faculty"]}>
+                      <DashboardLayout>
+                        <FacultyCoverLetter />
                       </DashboardLayout>
                     </RoleRoute>
                   </ProtectedRoute>
