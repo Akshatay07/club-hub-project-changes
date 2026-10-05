@@ -89,7 +89,7 @@ export function generateCoverLetterPdf(data: CoverLetterData): {
 
   setFont("bold", 11);
   doc.text(
-    "[Internal Quality Assurance Cell",
+    "Internal Quality Assurance Cell",
     headerCenterX,
     curY + 48,
     { align: "center" }
@@ -211,8 +211,8 @@ export function generateCoverLetterPdf(data: CoverLetterData): {
   const c2 = 185; // Details
   const c3 = 80;  // Date of Bill
   const c4 = 45;  // Qty.
-  const c5 = 80;  // Amount (₹)
-  const c6 = expTableW - (c1 + c2 + c3 + c4 + c5); // Total (₹) (~85)
+  const c5 = 80;  // Amount (Rs.)
+  const c6 = expTableW - (c1 + c2 + c3 + c4 + c5); // Total (Rs.) (~85)
 
   // Header Row
   doc.setFillColor(245, 245, 245);
@@ -231,8 +231,8 @@ export function generateCoverLetterPdf(data: CoverLetterData): {
   doc.text("Details", expTableX + c1 + 8, curY + 13);
   doc.text("Date of Bill", expTableX + c1 + c2 + 8, curY + 13);
   doc.text("Qty.", expTableX + c1 + c2 + c3 + 8, curY + 13);
-  doc.text("Amount (₹)", expTableX + c1 + c2 + c3 + c4 + 8, curY + 13);
-  doc.text("Total (₹)", expTableX + c1 + c2 + c3 + c4 + c5 + 8, curY + 13);
+  doc.text("Amount (Rs.)", expTableX + c1 + c2 + c3 + c4 + 8, curY + 13);
+  doc.text("Total (Rs.)", expTableX + c1 + c2 + c3 + c4 + c5 + 8, curY + 13);
 
   curY += rowHeight;
 
@@ -273,9 +273,12 @@ export function generateCoverLetterPdf(data: CoverLetterData): {
   const grandTotalValX = expTableX + c1 + c2 + c3 + c4 + c5 + 8;
   doc.line(expTableX + c1 + c2 + c3 + c4 + c5, curY, expTableX + c1 + c2 + c3 + c4 + c5, curY + rowHeight);
 
+  const rawTotal = String(data.grandTotal || "").replace(/^[₹\s]*|^(Rs\.?|INR)\s*/i, "").trim();
+  const formattedGrandTotal = rawTotal ? (rawTotal.endsWith("/-") ? `Rs. ${rawTotal}` : `Rs. ${rawTotal}`) : "__________";
+
   setFont("bold", 9.5);
   doc.text("Grand Total", grandTotalTextX, curY + 13);
-  doc.text(`₹ ${data.grandTotal || "__________"}`, grandTotalValX, curY + 13);+ 13);
+  doc.text(formattedGrandTotal, grandTotalValX, curY + 13);
 
   curY += rowHeight + 20;
 

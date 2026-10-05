@@ -474,13 +474,13 @@ const FacultyCoverLetter = () => {
                         className="h-8 text-xs"
                       />
                       <Input
-                        placeholder="Amount (₹)"
+                        placeholder="Amount (Rs.)"
                         value={item.amount}
                         onChange={(e) => handleItemChange(index, "amount", e.target.value)}
                         className="h-8 text-xs"
                       />
                       <Input
-                        placeholder="Total (₹)"
+                        placeholder="Total (Rs.)"
                         value={item.total}
                         onChange={(e) => handleItemChange(index, "total", e.target.value)}
                         className="h-8 text-xs"
@@ -502,13 +502,13 @@ const FacultyCoverLetter = () => {
 
               <div className="pt-2 border-t border-border">
                 <Label htmlFor="grand-total" className="text-xs font-semibold">
-                  Grand Total (₹)
+                  Grand Total (Rs.)
                 </Label>
                 <Input
                   id="grand-total"
                   placeholder={
                     calculatedTotal > 0
-                      ? `Calculated: ₹ ${calculatedTotal}`
+                      ? `Calculated: Rs. ${calculatedTotal}`
                       : "Leave empty or enter total amount"
                   }
                   value={grandTotalOverride}
@@ -560,7 +560,7 @@ const FacultyCoverLetter = () => {
                       Approved by <span className="font-semibold">AICTE</span> and <span className="font-semibold">UGC</span>, Accredited by <span className="font-semibold">NAAC</span> with <span className="font-semibold">'B+'</span> grade, and <span className="font-semibold">ISO 9001-2015</span> Certified Institution
                     </p>
                     <h3 className="text-[12px] font-bold text-black mt-1">
-                      [Internal Quality Assurance Cell
+                      Internal Quality Assurance Cell
                     </h3>
                   </div>
                 </div>
@@ -635,8 +635,8 @@ const FacultyCoverLetter = () => {
                         <th className="border border-black p-1.5 font-bold text-left w-[36%]">Details</th>
                         <th className="border border-black p-1.5 font-bold w-[18%]">Date of Bill</th>
                         <th className="border border-black p-1.5 font-bold w-[10%]">Qty.</th>
-                        <th className="border border-black p-1.5 font-bold w-[14%]">Amount (₹)</th>
-                        <th className="border border-black p-1.5 font-bold w-[14%]">Total (₹)</th>
+                        <th className="border border-black p-1.5 font-bold w-[14%]">Amount (Rs.)</th>
+                        <th className="border border-black p-1.5 font-bold w-[14%]">Total (Rs.)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -655,7 +655,7 @@ const FacultyCoverLetter = () => {
                           Grand Total
                         </td>
                         <td className="border border-black p-1.5 text-right font-bold">
-                          ₹ {displayGrandTotal || "___________"}
+                          {displayGrandTotal ? (displayGrandTotal.toLowerCase().includes("rs") ? displayGrandTotal : `Rs. ${displayGrandTotal}`) : "___________"}
                         </td>
                       </tr>
                     </tbody>
