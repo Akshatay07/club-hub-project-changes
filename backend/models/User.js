@@ -39,7 +39,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: null,
-      sparse: true,
     },
 
     department: { type: String, trim: true, default: "" },
