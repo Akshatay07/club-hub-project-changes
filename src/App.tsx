@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Settings from "./pages/Settings";
 import Messages from "./pages/Messages";
 // Pages
@@ -92,14 +93,15 @@ const LoginRoute = () => {
 
 /* ================= APP ================= */
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
 <Route path="/reset-password" element={<ResetPassword />} />
               {/* AUTH */}
               <Route path="/login" element={<LoginRoute />} />
@@ -345,6 +347,7 @@ const App = () => (
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
